@@ -2,9 +2,9 @@
 
 make clean
 
-syscall_table=$(sudo cat /boot/System.map-5.0.0-37-generic | grep "\Wsys_call_table$" | cut -d " " -f 1)
-echo "#pragma once" > sys.h
-echo "void** sys_call_table = (void**)0x$syscall_table;" >> sys.h
+#syscall_table=$(sudo cat /boot/System.map-5.0.0-37-generic | grep "\Wsys_call_table$" | cut -d " " -f 1)
+#echo "#pragma once" > sys.h
+#echo "void** sys_call_table = (void**)0x$syscall_table;" >> sys.h
 
 make
 

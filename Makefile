@@ -7,4 +7,5 @@ kbuild:
 	make -C $(KDIR) M=`pwd`
 
 clean:
-	rm -r *.mod.c *.o *.ko *.symvers *.order sys.h .*cmd .tmp_versions
+	rm -r *.mod.c *.o *.ko *.symvers *.order .*cmd .tmp_versions
+	#rm sys.h
