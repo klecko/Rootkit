@@ -1,6 +1,6 @@
 #!/bin/bash
 
-make clean
+#make clean
 
 #syscall_table=$(sudo cat /boot/System.map-5.0.0-37-generic | grep "\Wsys_call_table$" | cut -d " " -f 1)
 #echo "#pragma once" > sys.h
