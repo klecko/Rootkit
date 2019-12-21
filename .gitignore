@@ -6,3 +6,4 @@ test/
 modules.order
 Module.symvers
 changes
+.vscode
