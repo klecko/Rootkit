@@ -11,7 +11,7 @@
 #include <linux/delay.h>
 #include <asm/paravirt.h> // write_cr0
     
-int __init hooks(void);
-void __exit unhooks(void);
+int __init hooks_init(void);
+void __exit hooks_exit(void);
 
 #endif

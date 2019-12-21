@@ -6,7 +6,8 @@
 #include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
-#include <asm/paravirt.h> // write_cr0
+#include <linux/uaccess.h> // copy from user
 
-int __init backdoor_init(void);
-void __exit backdoor_exit(void);
+static int __init proc_init(void);
+
+static void __exit proc_exit(void);

