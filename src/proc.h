@@ -1,3 +1,6 @@
+#ifndef _PROC_H
+#define _PROC_H
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
@@ -10,3 +13,5 @@
 
 int __init proc_init(void);
 void __exit proc_exit(void);
+
+#endif

