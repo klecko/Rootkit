@@ -5,3 +5,4 @@ test/
 .tmp_versions/
 modules.order
 Module.symvers
+changes
