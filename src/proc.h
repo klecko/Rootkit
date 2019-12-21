@@ -8,6 +8,5 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h> // copy from user
 
-static int __init proc_init(void);
-
-static void __exit proc_exit(void);
+int __init proc_init(void);
+void __exit proc_exit(void);
