@@ -7,6 +7,7 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <asm/paravirt.h> // write_cr0
+#include <linux/slab.h>         // kmalloc()
 
 #include "hooks.h"
 #include "config.h"

