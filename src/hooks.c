@@ -22,18 +22,18 @@ struct linux_dirent {
 	unsigned long   d_ino;
 	unsigned long   d_off;
 	unsigned short  d_reclen; // d_reclen is the way to tell the length of this entry
-	char			d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
+	char            d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
 };
 
 typedef unsigned long long ino64_t;
 typedef unsigned long long off64_t;
 struct linux_dirent64 {
-	ino64_t			d_ino;
-	off64_t			d_off;
+	ino64_t         d_ino;
+	off64_t         d_off;
 	unsigned short  d_reclen; // d_reclen is the way to tell the length of this entry
-	char			padding; // I don't know why but without this d_name includes one extra byte at the beggining
-							 // that doesn't belong to the name
-	char			d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
+	char            padding; // I don't know why but without this d_name includes one extra byte
+	                         // at the beggining that doesn't belong to the name
+	char            d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
 };
 
 unsigned long *syscall_table = NULL;
