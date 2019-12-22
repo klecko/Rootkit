@@ -14,14 +14,15 @@ void display_intro(void){
 	printf("\t3. Hide PID\n");
 	printf("\t4. Unhide PID\n");
 	printf("\t5. See hidden files/PIDs\n");
+	printf("\t6. Hide module\n");
+	printf("\t7. Unhide module\n");
 }
 
 int get_option(void){
 	char c;
-	do{
-		printf("Select an option: ");
-		c = fgetc(stdin);
-	} while (c < '1' || c > '5');
+	printf("Select an option: ");
+	c = fgetc(stdin);
+	fgetc(stdin);
 	return c - '0';
 }
 
@@ -51,6 +52,11 @@ void send_msg_pid(int id, int fd){
 		printf("ERROR WRITE\n");
 }
 
+void send_msg_id(int id, int fd){
+	if (write(fd, &id, sizeof(id)) != sizeof(id))
+		printf("ERROR WRITE\n");
+}
+
 void hide_file(int fd){
 	send_msg_file(1, fd);
 	printf("File hidden successfully!\n");
@@ -72,11 +78,19 @@ void unhide_pid(int fd){
 }
 
 void see_hidden(int fd){
-	int id = 5;
-	if (write(fd, &id, sizeof(id)) != sizeof(id))
-		printf("ERROR WRITE\n");
+	send_msg_id(5, fd);
 	printf("Hidden files and PIDs shown in dmesg:\n");
 	system("dmesg | tail -1"); //could there be a race condition?
+}
+
+void hide_module(int fd){
+	send_msg_id(6, fd);
+	printf("Module hidden\n");
+}
+
+void unhide_module(int fd){
+	send_msg_id(7, fd);
+	printf("Module unhidden\n");
 }
 
 int main(int argc, char** argv){
@@ -106,8 +120,14 @@ int main(int argc, char** argv){
 			case 5:
 				see_hidden(fd);
 				break;
+			case 6:
+				hide_module(fd);
+				break;
+			case 7:
+				unhide_module(fd);
+				break;
 			default:
-				printf("NANI\n");
+				printf("Wrong option.\n");
 		}
 		printf("\n");
 	}

