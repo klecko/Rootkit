@@ -52,9 +52,9 @@ void handle_request(const char __user* buff, size_t len){
 			printk(KERN_INFO "ROOTKIT: Hidden files: ");
 			struct list_files_node* node;
 			list_for_each_entry(node, &list_files, list){
-				printk("%s, ", node->name);
+				printk(KERN_CONT "%s, ", node->name);
 			}
-			printk("\n");
+			printk(KERN_CONT "\n");
 			break;
 		default:
 			printk(KERN_INFO "ROOTKIT: ERROR Unknown peticion a proc\n");

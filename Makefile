@@ -2,6 +2,8 @@ obj-m = rootkit.o
 rootkit-objs := src/hooks.o src/backdoor.o src/proc.o src/rootkit.o
 KDIR = /lib/modules/`uname -r`/build
 
+ccflags-y := -std=gnu99 -Wno-declaration-after-statement -Wno-vla
+
 all: kbuild client
 
 kbuild:

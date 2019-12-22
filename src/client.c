@@ -75,7 +75,8 @@ void see_hidden(int fd){
 	int id = 5;
 	if (write(fd, &id, sizeof(id)) != sizeof(id))
 		printf("ERROR WRITE\n");
-	printf("Hidden files and PIDs shown in dmesg\n");
+	printf("Hidden files and PIDs shown in dmesg:\n");
+	system("dmesg | tail -1"); //could there be a race condition?
 }
 
 int main(int argc, char** argv){
@@ -108,6 +109,7 @@ int main(int argc, char** argv){
 			default:
 				printf("NANI\n");
 		}
+		printf("\n");
 	}
 	close(fd);
 	return 0;
