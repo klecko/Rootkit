@@ -15,7 +15,7 @@
 #include "proc.h"
 #include "hooks.h"
 
-int hidden = HIDE_MODULE;
+int hidden = 0;
 static struct list_head* prev;
 
 int hide_module(void){
