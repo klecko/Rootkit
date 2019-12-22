@@ -13,7 +13,7 @@
 #include <linux/list.h>
 
 extern struct list_head list_files;
-//LIST_HEAD can't be used because we need to declare it as extern
+//LIST_HEAD macro can't be used because we need to declare it as extern
 
 struct list_files_node{
 	struct list_head list; // prev and next

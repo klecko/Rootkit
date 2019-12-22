@@ -7,7 +7,7 @@ MODULE_DESCRIPTION("Rootkit by Klecko");
 MODULE_VERSION("0.1");
 
 #define HIDE_MODULE		0
-#define PROC_FILENAME 	"rootkit_proc"
+#define PROC_FILENAME	"rootkit_proc"
 #define HOOK_GETDENTS	1
 #define HOOK_GETDENTS64	1
 #define HOOK_WRITE		0

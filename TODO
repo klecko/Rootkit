@@ -1,0 +1,3 @@
+Clean includes
+Change proc permissions?
+Maybe move hide_module and unhide_module from proc to hooks

