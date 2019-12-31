@@ -14,6 +14,8 @@ MODULE_VERSION("0.1");
 #define HOOK_LSTAT       1
 #define HOOK_CHDIR       1
 #define HOOK_GETPRIORITY 1
+#define HOOK_OPEN        1
+#define HOOK_OPENAT      1
 #define BACKDOOR         0
 
 #define HIDE_STR "HiddenKlecko"

@@ -2,4 +2,3 @@ Clean includes
 Change proc permissions?
 Maybe move hide_module and unhide_module from proc to hooks
 Hook every syscall that could discover hidden processes
-cat /proc/hidden_pid/cmdline and similar must be blocked

