@@ -110,7 +110,7 @@ hook_define(1, long, getsid, pid_t, pid)
 hook_define(3, long, sched_getaffinity, pid_t, pid, unsigned int, len, unsigned long __user*, user_mask_ptr)
 hook_define(2, long, sched_getparam, pid_t, pid, struct sched_param __user *, param)
 hook_define(1, long, sched_getscheduler, pid_t, pid)
-hook_define(2, long, sched_rr_get_interval, pid_t, pid, struct __kernel_timespec __user *, interval)
+hook_define(2, long, sched_rr_get_interval, pid_t, pid, void __user *, interval)
 hook_define(2, long, kill, pid_t, pid, int, sig)
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, const struct pt_regs* regs) {
@@ -167,7 +167,7 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 	char pid_str[8];
 	long ret;
 
-	ret = sys_getdents_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count));
+	ret = sys_getdents64_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count));
 
 	buff_offset = 0;
 	while (buff_offset < ret){
@@ -272,7 +272,7 @@ asmlinkage long sys_getpriority_do_hook(int which, int who, const struct pt_regs
 
 asmlinkage long sys_open_do_hook(const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "open") == -1) return -ENOENT;
-	return sys_openat_orig(ARGS_ORIG(3, const char __user*, pathname, int, flags, umode_t, mode));
+	return sys_open_orig(ARGS_ORIG(3, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
 asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
@@ -305,14 +305,14 @@ asmlinkage long sys_sched_getscheduler_do_hook(pid_t pid, const struct pt_regs* 
 	return sys_sched_getscheduler_orig(ARGS_ORIG(1, pid_t, pid));
 }
 
-asmlinkage long sys_sched_rr_get_interval_do_hook(pid_t pid, struct __kernel_timespec __user *interval, const struct pt_regs* regs){
+asmlinkage long sys_sched_rr_get_interval_do_hook(pid_t pid, void __user *interval, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_rr_get_interval") == -1) return -ESRCH;
-	return sys_sched_rr_get_interval_orig(ARGS_ORIG(2, pid_t, pid, struct __kernel_timespec __user *, interval));
+	return sys_sched_rr_get_interval_orig(ARGS_ORIG(2, pid_t, pid, void __user *, interval));
 }
 
 asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs){
 	if (check_pid(pid, "kill") == -1) return -ESRCH;
-	return sys_kill_orig(ARGS_ORIG(1, pid_t, pid, int, sig));
+	return sys_kill_orig(ARGS_ORIG(2, pid_t, pid, int, sig));
 }
 
 
