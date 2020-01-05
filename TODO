@@ -2,4 +2,4 @@ Clean includes
 Change proc permissions?
 Maybe move hide_module and unhide_module from proc to hooks
 Hook every syscall that could discover hidden processes
-Check why getdents64 now seems to fail due to the 1-byte-padding in kernel 5.0.0-37-generic
+Check why getdents64 now seems to fail due to the 1-byte-padding in some kernels 5.0.0-37-generic.
