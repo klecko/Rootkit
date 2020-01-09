@@ -89,6 +89,7 @@ void unhide_module(int fd){
 }
 
 int main(int argc, char** argv){
+	int once = (argc > 1);
 	int fd, correct;
 	if ((fd = open("/proc/rootkit_proc", O_WRONLY)) == -1){
 		printf("ERROR OPEN: Is the rootkit running?\n");
@@ -129,6 +130,8 @@ int main(int argc, char** argv){
 			printf("Done\n\n");
 		else
 			printf("Wrong option.\n\n");
+		if (once)
+			break;
 	}
 	close(fd);
 	return 0;
