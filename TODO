@@ -3,4 +3,5 @@ Change proc permissions?
 Maybe move hide_module and unhide_module from proc to hooks
 Hook every syscall that could discover hidden processes
 Check why getdents64 now seems to fail due to the 1-byte-padding in some kernels 5.0.0-37-generic.
-Create ./check.sh script
+Don't add a file or pid to the list if it is already present
+Hide module from sysfs
