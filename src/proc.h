@@ -17,6 +17,5 @@ int hide_module(void);
 int unhide_module(void);
 
 int __init proc_init(void);
-void __exit proc_exit(void);
-
+void proc_exit(void);
 #endif

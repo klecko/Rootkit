@@ -130,7 +130,7 @@ int __init proc_init(void){
 	return 0;
 }
 
-void __exit proc_exit(void){
+void proc_exit(void){
 	unhide_file(PROC_FILENAME);
 	remove_proc_entry(PROC_FILENAME, NULL);
 }

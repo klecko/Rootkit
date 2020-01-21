@@ -348,7 +348,7 @@ int __init hooks_init(void){
 }
 
 
-void __exit hooks_exit(void){
+void hooks_exit(void){
 	ENABLE_WRITE();
 	disable_hook(getdents, GETDENTS)
 	disable_hook(getdents64, GETDENTS64)

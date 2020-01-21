@@ -34,6 +34,6 @@ int unhide_pid(int pid);
 
 
 int __init hooks_init(void);
-void __exit hooks_exit(void);
+void hooks_exit(void);
 
 #endif
