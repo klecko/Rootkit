@@ -1,10 +1,11 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
+#define DEBUG            1
 #define HIDE_MODULE      0
 #define BACKDOOR         0
 
-#define HIDE_STR "HiddenKlecko"
+#define HIDE_STR         "HiddenKlecko"
 #define PROC_FILENAME    "rootkit_proc"
 
 #define HOOK_GETDENTS    1

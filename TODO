@@ -2,3 +2,4 @@ Change proc permissions?
 Hook every syscall that could discover hidden processes
 Check why getdents64 now seems to fail due to the 1-byte-padding in some kernels 5.0.0-37-generic.
 Hide module from sysfs
+Think a better way to get information from kernel to user, maybe through proc

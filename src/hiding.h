@@ -1,7 +1,9 @@
 #ifndef _HIDING_H
 #define _HIDING_H
 
-#define log(...) if (!is_module_hidden()) printk(__VA_ARGS__)
+#include "config.h"
+
+#define log(...) if (DEBUG) printk(__VA_ARGS__)
 
 int is_module_hidden(void);
 int is_file_hidden(const char* name);
