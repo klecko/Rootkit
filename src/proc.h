@@ -11,10 +11,6 @@
 #include <linux/delay.h>
 #include <linux/uaccess.h> // copy from user
 
-extern int hidden;
-
-int hide_module(void);
-int unhide_module(void);
 
 int __init proc_init(void);
 void proc_exit(void);

