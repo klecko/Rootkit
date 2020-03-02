@@ -6,4 +6,4 @@ Think a better way to get information from kernel to user, maybe through proc
 Backdoor uses curl, which is not included in every distr
 Fix synchronization in proc.c request handling
 Think about my_basename const or not
-Investigate some page faults related with my_basename
+Investigate some page faults related with my_basename --> fix smap: accessing user memory directly should not be allowed
