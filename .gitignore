@@ -7,4 +7,5 @@ modules.order
 Module.symvers
 changes
 .vscode
-*o
+*.o
+*.o.d
