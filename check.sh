@@ -24,8 +24,6 @@ ls $CLIENT_NAME &> /dev/null || error "Client not available"
 echo "Checking module hiding"
 echo "6" | ./client a &> /dev/null || echo "Error trying to hide module"
 lsmod | grep $MODULE_NAME &> /dev/null && echo "Rootkit module was hidden but it is still visible to lsmod"
-echo "7" | ./client a &> /dev/null || echo "Error trying to unhide module"
-lsmod | grep $MODULE_NAME &> /dev/null || echo "Rootkit module was unhidden but it is not visible to lsmod"
 
 # HIDDEN FILES
 # Create test file
@@ -73,6 +71,8 @@ else
 	echo "Error trying to hide PID $$"
 fi
 
+echo "7" | ./client a &> /dev/null || echo "Error trying to unhide module"
+lsmod | grep $MODULE_NAME &> /dev/null || echo "Rootkit module was unhidden but it is not visible to lsmod"
 
 
 echo "FINISHED"

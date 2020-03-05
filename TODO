@@ -5,3 +5,5 @@ Think a better way to get information from kernel to user, maybe through proc
 Backdoor uses curl, which is not included in every distr
 Fix synchronization in proc.c request handling. Maybe try to exploit it before?
 Change log so it prints the header. Improve logging
+Add random sha to rootkit_proc so it changes each time the rootkit is built
+Check on 32 bits systems
