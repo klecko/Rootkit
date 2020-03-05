@@ -12,6 +12,8 @@
 #define HOOK_GETDENTS64  1
 #define HOOK_STAT        1
 #define HOOK_LSTAT       1
+#define HOOK_STAT64      1
+#define HOOK_LSTAT64     1
 #define HOOK_CHDIR       1
 #define HOOK_GETPRIORITY 1
 #define HOOK_OPEN        1
