@@ -1,3 +1,5 @@
+/* Interface for hiding processes, files and the rootkit itself */
+
 #ifndef _HIDING_H
 #define _HIDING_H
 

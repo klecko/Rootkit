@@ -1,3 +1,5 @@
+/* Proc file to communicate with the rootkit from userland */
+
 #ifndef _PROC_H
 #define _PROC_H
 

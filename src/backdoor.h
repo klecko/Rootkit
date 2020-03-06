@@ -1,3 +1,5 @@
+/* Kernel thread that runs the backdoor script */
+
 #ifndef _BACKDOOR_H
 #define _BACKDOOR_H
 
